@@ -205,3 +205,24 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Python標準は自動で入るので、以下を追加
+
+# データファイル（実データは含めない）
+*.db
+*.sqlite
+data/*.csv
+!data/.gitkeep
+
+# exe化関連
+build/
+dist/
+*.spec
+
+# IDE
+.vscode/
+.idea/
+
+# 環境
+.env
+venv/
