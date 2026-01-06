@@ -75,22 +75,39 @@ class AccountingDashboardApp(ctk.CTk):
 
     def _create_main_area(self):
         """メインエリアを作成"""
-        # タブビューを作成
+        # タブビューを作成（データベース接続を渡す）
         self.tab_view = MainTabView(
             self,
+            db=self.db,
             on_tab_change=self._on_tab_change
         )
         self.tab_view.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
+        # 初期データでグラフを表示
+        self._update_dashboard()
+
     def _on_tab_change(self, tab_name: str):
         """タブ変更時のコールバック"""
-        # 将来的にタブごとのデータ更新処理を追加
-        pass
+        # タブ切り替え時にデータを更新
+        if tab_name == MainTabView.TAB_DASHBOARD:
+            self._update_dashboard()
 
     def _on_filter_change(self):
         """フィルタ変更時のコールバック"""
         filter_values = self.filter_panel.get_filter_values()
         print(f"フィルタ変更: {filter_values}")
+
+        # ダッシュボードのグラフを更新
+        self._update_dashboard()
+
+    def _update_dashboard(self):
+        """ダッシュボードのグラフを更新"""
+        filter_values = self.filter_panel.get_filter_values()
+        self.tab_view.update_dashboard(
+            years=filter_values["years"],
+            segments=filter_values["segments"],
+            account=filter_values["account"]
+        )
 
     def _center_window(self):
         """ウィンドウを画面中央に配置"""
