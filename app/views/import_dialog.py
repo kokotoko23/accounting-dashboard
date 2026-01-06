@@ -33,7 +33,7 @@ class ImportDialog(ctk.CTkToplevel):
 
         # ウィンドウ設定
         self.title("CSVインポート")
-        self.geometry("500x350")
+        self.geometry("500x400")
         self.resizable(False, False)
 
         # モーダルにする
@@ -145,7 +145,7 @@ class ImportDialog(ctk.CTkToplevel):
         parent_height = parent.winfo_height()
 
         width = 500
-        height = 350
+        height = 400
         x = parent_x + (parent_width - width) // 2
         y = parent_y + (parent_height - height) // 2
 

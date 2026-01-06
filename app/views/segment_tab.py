@@ -279,58 +279,62 @@ class SegmentTab(ctk.CTkFrame):
 
     def _update_comparison_chart(self, years: List[int], account: str):
         """セグメント別比較グラフを更新"""
-        if not years or len(years) < 2:
-            # 1年だけの場合は単純な棒グラフ
-            if years:
-                df = self.db.get_segment_summary(years, account)
-                if not df.empty:
-                    self.comparison_chart.plot(
-                        labels=df["segment"].tolist(),
-                        values=[v / 1_000_000 for v in df["total"].tolist()],
-                        xlabel="セグメント",
-                        ylabel="金額（百万円）",
-                        title=f"セグメント別実績 {years[0]}年度 - {account}"
-                    )
-                    return
-
+        if not years:
             self.comparison_chart.clear()
-            self.comparison_chart.set_title("セグメント比較（2年以上選択してください）")
+            self.comparison_chart.set_title("セグメント比較（年度を選択してください）")
             self.comparison_chart.redraw()
             return
 
-        # 複数年の比較用データを準備
-        sorted_years = sorted(years)[-2:]  # 最新2年のみ
-        current_year = sorted_years[-1]
-        prev_year = sorted_years[-2]
-
-        df_current = self.db.get_segment_summary([current_year], account)
-        df_prev = self.db.get_segment_summary([prev_year], account)
-
-        if df_current.empty:
+        # 1年だけの場合は単純な棒グラフ
+        if len(years) == 1:
+            df = self.db.get_segment_summary(years, account)
+            if not df.empty:
+                self.comparison_chart.plot(
+                    labels=df["segment"].tolist(),
+                    values=[v / 1_000_000 for v in df["total"].tolist()],
+                    xlabel="セグメント",
+                    ylabel="金額（百万円）",
+                    title=f"セグメント別実績 {years[0]}年度 - {account}"
+                )
+                return
             self.comparison_chart.clear()
             self.comparison_chart.set_title("セグメント比較（データなし）")
             self.comparison_chart.redraw()
             return
 
-        # グラフ用データを作成
-        segments = df_current["segment"].tolist()
-        current_values = [v / 1_000_000 for v in df_current["total"].tolist()]
+        # 複数年の比較用データを準備（全ての選択年度を表示）
+        sorted_years = sorted(years)
 
-        prev_values = []
-        for segment in segments:
-            if not df_prev.empty:
-                prev_row = df_prev[df_prev["segment"] == segment]
-                if not prev_row.empty:
-                    prev_values.append(prev_row["total"].values[0] / 1_000_000)
+        # 最新年度のセグメント一覧を取得
+        df_latest = self.db.get_segment_summary([sorted_years[-1]], account)
+        if df_latest.empty:
+            self.comparison_chart.clear()
+            self.comparison_chart.set_title("セグメント比較（データなし）")
+            self.comparison_chart.redraw()
+            return
+
+        segments = df_latest["segment"].tolist()
+
+        # 各年度のデータを取得
+        data_dict = {}
+        for year in sorted_years:
+            df_year = self.db.get_segment_summary([year], account)
+            year_values = []
+            for segment in segments:
+                if not df_year.empty:
+                    seg_row = df_year[df_year["segment"] == segment]
+                    if not seg_row.empty:
+                        year_values.append(seg_row["total"].values[0] / 1_000_000)
+                    else:
+                        year_values.append(0)
                 else:
-                    prev_values.append(0)
-            else:
-                prev_values.append(0)
+                    year_values.append(0)
+            data_dict[f"{year}年度"] = year_values
 
         # 複数系列の棒グラフを描画
         self._plot_grouped_bar(
             segments,
-            {f"{prev_year}年度": prev_values, f"{current_year}年度": current_values},
+            data_dict,
             f"セグメント別年度比較 - {account}"
         )
 
@@ -341,21 +345,32 @@ class SegmentTab(ctk.CTkFrame):
         self.comparison_chart.clear()
         ax = self.comparison_chart.ax
 
-        x = np.arange(len(labels))
-        width = 0.35
-        multiplier = 0
+        n_groups = len(labels)
+        n_bars = len(data_dict)
 
-        colors = ["#90CAF9", "#1976D2"]  # 淡い青、濃い青
+        # 棒の幅を動的に計算
+        total_width = 0.8
+        width = total_width / n_bars
+
+        x = np.arange(n_groups)
+
+        # カラーパレット（年度数に応じて色を生成）
+        colors = [
+            "#BBDEFB",  # 薄い青
+            "#64B5F6",  # 明るい青
+            "#1976D2",  # 青
+            "#0D47A1",  # 濃い青
+            "#42A5F5",  # スカイブルー
+        ]
 
         for i, (label, values) in enumerate(data_dict.items()):
-            offset = width * multiplier
+            offset = (i - n_bars / 2 + 0.5) * width
             ax.bar(x + offset, values, width, label=label, color=colors[i % len(colors)])
-            multiplier += 1
 
         ax.set_xlabel("セグメント")
         ax.set_ylabel("金額（百万円）")
         ax.set_title(title)
-        ax.set_xticks(x + width / 2)
+        ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=45, ha="right")
         ax.legend(loc="upper right")
         ax.grid(axis="y", alpha=0.3)
