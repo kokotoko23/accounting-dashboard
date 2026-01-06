@@ -360,7 +360,7 @@ class SegmentTab(ctk.CTkFrame):
         ax.legend(loc="upper right")
         ax.grid(axis="y", alpha=0.3)
 
-        self.comparison_chart.fig.tight_layout()
+        self.comparison_chart.figure.tight_layout()
         self.comparison_chart.redraw()
 
     def _on_segment_select(self, segment_name: str):
