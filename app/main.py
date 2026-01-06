@@ -37,6 +37,9 @@ class AccountingDashboardApp(ctk.CTk):
         # UIを構築
         self._create_layout()
 
+        # ステータスバーを作成
+        self._create_status_bar()
+
         # ウィンドウを中央に配置
         self._center_window()
 
@@ -45,15 +48,29 @@ class AccountingDashboardApp(ctk.CTk):
 
     def _create_layout(self):
         """レイアウトを作成"""
-        # グリッド設定
+        # グリッド設定（メイン領域 + ステータスバー）
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=0)  # ステータスバー用
 
         # 左サイドバー（フィルタパネル）
         self._create_filter_panel()
 
-        # メインエリア（後でタブ構造を追加）
+        # メインエリア
         self._create_main_area()
+
+    def _create_status_bar(self):
+        """ステータスバーを作成"""
+        self.status_frame = ctk.CTkFrame(self, height=30, corner_radius=0)
+        self.status_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
+
+        self.status_label = ctk.CTkLabel(
+            self.status_frame,
+            text="準備完了",
+            font=ctk.CTkFont(size=12),
+            anchor="w"
+        )
+        self.status_label.pack(side="left", padx=10, pady=5)
 
     def _create_filter_panel(self):
         """フィルタパネルを作成"""
@@ -103,11 +120,37 @@ class AccountingDashboardApp(ctk.CTk):
     def _update_dashboard(self):
         """ダッシュボードのグラフを更新"""
         filter_values = self.filter_panel.get_filter_values()
-        self.tab_view.update_dashboard(
-            years=filter_values["years"],
-            segments=filter_values["segments"],
-            account=filter_values["account"]
-        )
+
+        # ローディング表示
+        self._set_status("グラフを更新中...", "normal")
+        self.update_idletasks()
+
+        try:
+            self.tab_view.update_dashboard(
+                years=filter_values["years"],
+                segments=filter_values["segments"],
+                account=filter_values["account"]
+            )
+            self._set_status("更新完了", "normal")
+        except Exception as e:
+            error_msg = f"エラー: {str(e)}"
+            self._set_status(error_msg, "error")
+            print(f"グラフ更新エラー: {e}")
+
+    def _set_status(self, message: str, status_type: str = "normal"):
+        """
+        ステータスバーのメッセージを設定
+
+        Args:
+            message: 表示するメッセージ
+            status_type: "normal" または "error"
+        """
+        if hasattr(self, "status_label"):
+            self.status_label.configure(text=message)
+            if status_type == "error":
+                self.status_label.configure(text_color="red")
+            else:
+                self.status_label.configure(text_color=("gray10", "gray90"))
 
     def _center_window(self):
         """ウィンドウを画面中央に配置"""
