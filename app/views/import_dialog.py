@@ -98,21 +98,21 @@ class ImportDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             info_frame,
-            text="必須カラム:",
+            text="対応フォーマット:",
             font=ctk.CTkFont(weight="bold")
         ).pack(anchor="w", padx=10, pady=(10, 5))
 
-        columns_text = "year, month, segment, division, dept_code, dept_name,\ncustomer_code, customer_name, industry, account, amount"
+        format_text = "• ワイド形式: 1月〜12月の列を持つCSV（自動変換）\n• ロング形式: year, month, amount 列を持つCSV"
         ctk.CTkLabel(
             info_frame,
-            text=columns_text,
+            text=format_text,
             font=ctk.CTkFont(size=11),
             justify="left"
         ).pack(anchor="w", padx=10, pady=(0, 5))
 
         ctk.CTkLabel(
             info_frame,
-            text="※ 日本語カラム名（年度、月、セグメント等）も対応",
+            text="※ 日本語カラム名（年度、開示セグメント名称等）も対応",
             font=ctk.CTkFont(size=11),
             text_color="gray"
         ).pack(anchor="w", padx=10, pady=(0, 10))
