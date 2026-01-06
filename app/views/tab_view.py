@@ -6,6 +6,8 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
+from app.views.dashboard_tab import DashboardTab
+
 
 class MainTabView(ctk.CTkTabview):
     """メインエリアのタブビューコンポーネント"""
@@ -59,13 +61,9 @@ class MainTabView(ctk.CTkTabview):
 
     def _create_dashboard_content(self):
         """ダッシュボードタブの内容を作成"""
-        # プレースホルダー（Phase 2-2でグラフを実装）
-        label = ctk.CTkLabel(
-            self.dashboard_frame,
-            text="ダッシュボード\n（Phase 2-2でグラフを実装）",
-            font=ctk.CTkFont(size=18)
-        )
-        label.pack(expand=True)
+        # ダッシュボードタブコンポーネントを作成
+        self.dashboard_tab = DashboardTab(self.dashboard_frame)
+        self.dashboard_tab.pack(fill="both", expand=True)
 
     def _create_customer_content(self):
         """取引先分析タブの内容を作成"""
