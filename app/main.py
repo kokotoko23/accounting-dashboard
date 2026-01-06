@@ -14,6 +14,7 @@ import customtkinter as ctk
 
 from app.models.database import AccountingDatabase
 from app.views.filter_panel import FilterPanel
+from app.views.tab_view import MainTabView
 
 
 class AccountingDashboardApp(ctk.CTk):
@@ -74,16 +75,17 @@ class AccountingDashboardApp(ctk.CTk):
 
     def _create_main_area(self):
         """メインエリアを作成"""
-        self.main_frame = ctk.CTkFrame(self)
-        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
-
-        # プレースホルダーラベル（後でタブ構造に置き換え）
-        placeholder = ctk.CTkLabel(
-            self.main_frame,
-            text="メインエリア\n（Phase 2-1-Cでタブ構造を実装）",
-            font=ctk.CTkFont(size=16)
+        # タブビューを作成
+        self.tab_view = MainTabView(
+            self,
+            on_tab_change=self._on_tab_change
         )
-        placeholder.pack(expand=True)
+        self.tab_view.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+    def _on_tab_change(self, tab_name: str):
+        """タブ変更時のコールバック"""
+        # 将来的にタブごとのデータ更新処理を追加
+        pass
 
     def _on_filter_change(self):
         """フィルタ変更時のコールバック"""
