@@ -9,6 +9,7 @@ import customtkinter as ctk
 from app.models.database import AccountingDatabase
 from app.views.dashboard_tab import DashboardTab
 from app.views.customer_tab import CustomerTab
+from app.views.segment_tab import SegmentTab
 
 
 class MainTabView(ctk.CTkTabview):
@@ -111,13 +112,25 @@ class MainTabView(ctk.CTkTabview):
 
     def _create_segment_content(self):
         """セグメント分析タブの内容を作成"""
-        # プレースホルダー
-        label = ctk.CTkLabel(
-            self.segment_frame,
-            text="セグメント分析\n（後で実装）",
-            font=ctk.CTkFont(size=18)
-        )
-        label.pack(expand=True)
+        self.segment_tab = SegmentTab(self.segment_frame, db=self.db)
+        self.segment_tab.pack(fill="both", expand=True)
+
+    def update_segment(
+        self,
+        years: List[int],
+        segments: List[str],
+        account: str
+    ):
+        """
+        セグメント分析タブを更新
+
+        Args:
+            years: 選択された年度リスト
+            segments: 選択されたセグメントリスト
+            account: 選択された科目
+        """
+        if hasattr(self, "segment_tab"):
+            self.segment_tab.update_data(years, segments, account)
 
     def _on_tab_changed(self):
         """タブ変更時の処理"""
