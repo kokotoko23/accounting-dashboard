@@ -2,11 +2,13 @@
 タブビュー - メインエリアのタブ構造
 """
 
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 import customtkinter as ctk
 
+from app.models.database import AccountingDatabase
 from app.views.dashboard_tab import DashboardTab
+from app.views.customer_tab import CustomerTab
 
 
 class MainTabView(ctk.CTkTabview):
@@ -19,6 +21,7 @@ class MainTabView(ctk.CTkTabview):
     def __init__(
         self,
         parent,
+        db: Optional[AccountingDatabase] = None,
         on_tab_change: Optional[Callable[[str], None]] = None,
         **kwargs
     ):
@@ -27,10 +30,12 @@ class MainTabView(ctk.CTkTabview):
 
         Args:
             parent: 親ウィジェット
+            db: データベース接続
             on_tab_change: タブ変更時のコールバック関数
         """
         super().__init__(parent, **kwargs)
 
+        self.db = db
         self.on_tab_change = on_tab_change
 
         # タブを作成
@@ -62,18 +67,47 @@ class MainTabView(ctk.CTkTabview):
     def _create_dashboard_content(self):
         """ダッシュボードタブの内容を作成"""
         # ダッシュボードタブコンポーネントを作成
-        self.dashboard_tab = DashboardTab(self.dashboard_frame)
+        self.dashboard_tab = DashboardTab(self.dashboard_frame, db=self.db)
         self.dashboard_tab.pack(fill="both", expand=True)
+
+    def update_dashboard(
+        self,
+        years: List[int],
+        segments: List[str],
+        account: str
+    ):
+        """
+        ダッシュボードのグラフを更新
+
+        Args:
+            years: 選択された年度リスト
+            segments: 選択されたセグメントリスト
+            account: 選択された科目
+        """
+        if hasattr(self, "dashboard_tab"):
+            self.dashboard_tab.update_charts(years, segments, account)
 
     def _create_customer_content(self):
         """取引先分析タブの内容を作成"""
-        # プレースホルダー（Phase 2-4-Bで実装）
-        label = ctk.CTkLabel(
-            self.customer_frame,
-            text="取引先分析\n（Phase 2-4-Bで実装）",
-            font=ctk.CTkFont(size=18)
-        )
-        label.pack(expand=True)
+        self.customer_tab = CustomerTab(self.customer_frame, db=self.db)
+        self.customer_tab.pack(fill="both", expand=True)
+
+    def update_customer(
+        self,
+        years: List[int],
+        segments: List[str],
+        account: str
+    ):
+        """
+        取引先分析タブを更新
+
+        Args:
+            years: 選択された年度リスト
+            segments: 選択されたセグメントリスト
+            account: 選択された科目
+        """
+        if hasattr(self, "customer_tab"):
+            self.customer_tab.update_data(years, segments, account)
 
     def _create_segment_content(self):
         """セグメント分析タブの内容を作成"""
