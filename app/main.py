@@ -16,7 +16,9 @@ import customtkinter as ctk
 
 from app.models.database import AccountingDatabase
 from app.utils.exporter import CSVExporter
+from app.utils.importer import CSVImporter
 from app.views.filter_panel import FilterPanel
+from app.views.import_dialog import ImportDialog, ImportResultDialog
 from app.views.tab_view import MainTabView
 
 
@@ -71,6 +73,15 @@ class AccountingDashboardApp(ctk.CTk):
         self.toolbar = ctk.CTkFrame(self, height=40, corner_radius=0)
         self.toolbar.grid(row=0, column=0, columnspan=2, sticky="ew")
 
+        # インポートボタン
+        self.import_btn = ctk.CTkButton(
+            self.toolbar,
+            text="📤 CSVインポート",
+            width=140,
+            command=self._on_import_click
+        )
+        self.import_btn.pack(side="left", padx=10, pady=5)
+
         # エクスポートボタン
         self.export_btn = ctk.CTkButton(
             self.toolbar,
@@ -78,7 +89,7 @@ class AccountingDashboardApp(ctk.CTk):
             width=140,
             command=self._on_export_click
         )
-        self.export_btn.pack(side="left", padx=10, pady=5)
+        self.export_btn.pack(side="left", padx=5, pady=5)
 
     def _create_status_bar(self):
         """ステータスバーを作成"""
@@ -207,6 +218,86 @@ class AccountingDashboardApp(ctk.CTk):
             error_msg = f"エラー: {str(e)}"
             self._set_status(error_msg, "error")
             print(f"セグメントデータ更新エラー: {e}")
+
+    def _on_import_click(self):
+        """インポートボタンクリック時の処理"""
+        # ファイル選択ダイアログを表示
+        filepath = filedialog.askopenfilename(
+            filetypes=[("CSVファイル", "*.csv"), ("すべてのファイル", "*.*")],
+            title="CSVインポート"
+        )
+
+        if not filepath:
+            return  # キャンセルされた場合
+
+        # インポートダイアログを表示
+        dialog = ImportDialog(
+            self,
+            filepath=filepath,
+            on_import=self._execute_import
+        )
+        self.wait_window(dialog)
+
+    def _execute_import(self, filepath: str, mode: str):
+        """
+        インポートを実行
+
+        Args:
+            filepath: CSVファイルパス
+            mode: "append" または "replace"
+        """
+        self._set_status("インポート中...", "normal")
+        self.update_idletasks()
+
+        try:
+            importer = CSVImporter(self.db)
+            success, count, errors = importer.import_csv(filepath, mode)
+
+            # 結果ダイアログを表示
+            result_dialog = ImportResultDialog(
+                self,
+                success=success,
+                count=count,
+                errors=errors
+            )
+            self.wait_window(result_dialog)
+
+            if success:
+                self._set_status(f"インポート完了: {count}件", "normal")
+                # フィルタパネルを更新（新しい年度・セグメントが追加された可能性）
+                self._refresh_filter_panel()
+                # 現在のタブを更新
+                self._on_filter_change()
+            else:
+                self._set_status("インポート失敗", "error")
+
+        except Exception as e:
+            error_msg = f"インポートエラー: {str(e)}"
+            self._set_status(error_msg, "error")
+            print(f"CSVインポートエラー: {e}")
+
+    def _refresh_filter_panel(self):
+        """フィルタパネルを再作成（データ更新後）"""
+        # 現在の選択状態を保存
+        current_values = self.filter_panel.get_filter_values()
+
+        # フィルタパネルを削除
+        self.filter_panel.destroy()
+
+        # 新しいデータでフィルタパネルを再作成
+        years = self.db.get_years()
+        segments = self.db.get_segments()
+        accounts = self.db.get_accounts()
+
+        self.filter_panel = FilterPanel(
+            self,
+            years=years,
+            segments=segments,
+            accounts=accounts,
+            on_filter_change=self._on_filter_change,
+            width=220
+        )
+        self.filter_panel.grid(row=1, column=0, sticky="nsw", padx=0, pady=0)
 
     def _on_export_click(self):
         """エクスポートボタンクリック時の処理"""
