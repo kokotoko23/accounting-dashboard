@@ -9,6 +9,7 @@ import pandas as pd
 
 from app.models.database import AccountingDatabase
 from app.utils.chart_base import LineChartFrame, BarChartFrame, PieChartFrame
+from app.views.summary_panel import SummaryPanel
 
 
 class DashboardTab(ctk.CTkFrame):
@@ -28,48 +29,60 @@ class DashboardTab(ctk.CTkFrame):
         self.db = db if db else AccountingDatabase()
         self._owns_db = db is None  # 自分で作成した場合はクローズ責任を持つ
 
-        # グリッド設定（2x2）
+        # グリッド設定（サマリー + 2x2グラフ）
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=0)  # サマリーパネル
+        self.grid_rowconfigure(1, weight=1)  # グラフ上段
+        self.grid_rowconfigure(2, weight=1)  # グラフ下段
+
+        # サマリーパネルを作成
+        self._create_summary_panel()
 
         # グラフフレームを作成
         self._create_charts()
+
+    def _create_summary_panel(self):
+        """サマリーパネルを作成"""
+        self.summary_panel = SummaryPanel(self, db=self.db)
+        self.summary_panel.grid(
+            row=0, column=0, columnspan=2,
+            sticky="ew", padx=5, pady=5
+        )
 
     def _create_charts(self):
         """グラフを作成"""
         # 左上: 月次推移グラフ（折れ線）
         self.monthly_chart = LineChartFrame(
             self,
-            figsize=(5, 3.5),
+            figsize=(5, 3),
             dpi=100
         )
-        self.monthly_chart.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.monthly_chart.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
         # 右上: セグメント構成比（円グラフ）
         self.segment_chart = PieChartFrame(
             self,
-            figsize=(5, 3.5),
+            figsize=(5, 3),
             dpi=100
         )
-        self.segment_chart.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self.segment_chart.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
 
         # 左下: 前年同月比較（棒グラフ）
         self.comparison_chart = BarChartFrame(
             self,
-            figsize=(5, 3.5),
+            figsize=(5, 3),
             dpi=100
         )
-        self.comparison_chart.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self.comparison_chart.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
         # 右下: 予備スペース（折れ線）
         self.extra_chart = LineChartFrame(
             self,
-            figsize=(5, 3.5),
+            figsize=(5, 3),
             dpi=100
         )
-        self.extra_chart.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        self.extra_chart.grid(row=2, column=1, sticky="nsew", padx=5, pady=5)
 
     def update_charts(
         self,
@@ -78,13 +91,17 @@ class DashboardTab(ctk.CTkFrame):
         account: str
     ):
         """
-        全グラフを更新
+        全グラフとサマリーを更新
 
         Args:
             years: 選択された年度リスト
             segments: 選択されたセグメントリスト
             account: 選択された科目
         """
+        # サマリーパネルを更新
+        self.summary_panel.update_summary(years, segments, account)
+
+        # グラフを更新
         self._update_monthly_chart(years, segments, account)
         self._update_segment_chart(years, account)
         self._update_comparison_chart(years, segments, account)

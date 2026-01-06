@@ -10,9 +10,12 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from tkinter import filedialog
+
 import customtkinter as ctk
 
 from app.models.database import AccountingDatabase
+from app.utils.exporter import CSVExporter
 from app.views.filter_panel import FilterPanel
 from app.views.tab_view import MainTabView
 
@@ -48,10 +51,14 @@ class AccountingDashboardApp(ctk.CTk):
 
     def _create_layout(self):
         """レイアウトを作成"""
-        # グリッド設定（メイン領域 + ステータスバー）
+        # グリッド設定（ツールバー + メイン領域 + ステータスバー）
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=0)  # ステータスバー用
+        self.grid_rowconfigure(0, weight=0)  # ツールバー用
+        self.grid_rowconfigure(1, weight=1)  # メイン領域
+        self.grid_rowconfigure(2, weight=0)  # ステータスバー用
+
+        # ツールバー
+        self._create_toolbar()
 
         # 左サイドバー（フィルタパネル）
         self._create_filter_panel()
@@ -59,10 +66,24 @@ class AccountingDashboardApp(ctk.CTk):
         # メインエリア
         self._create_main_area()
 
+    def _create_toolbar(self):
+        """ツールバーを作成"""
+        self.toolbar = ctk.CTkFrame(self, height=40, corner_radius=0)
+        self.toolbar.grid(row=0, column=0, columnspan=2, sticky="ew")
+
+        # エクスポートボタン
+        self.export_btn = ctk.CTkButton(
+            self.toolbar,
+            text="📥 CSVエクスポート",
+            width=140,
+            command=self._on_export_click
+        )
+        self.export_btn.pack(side="left", padx=10, pady=5)
+
     def _create_status_bar(self):
         """ステータスバーを作成"""
         self.status_frame = ctk.CTkFrame(self, height=30, corner_radius=0)
-        self.status_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
+        self.status_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
 
         self.status_label = ctk.CTkLabel(
             self.status_frame,
@@ -88,7 +109,7 @@ class AccountingDashboardApp(ctk.CTk):
             on_filter_change=self._on_filter_change,
             width=220
         )
-        self.filter_panel.grid(row=0, column=0, sticky="nsw", padx=0, pady=0)
+        self.filter_panel.grid(row=1, column=0, sticky="nsw", padx=0, pady=0)
 
     def _create_main_area(self):
         """メインエリアを作成"""
@@ -98,7 +119,7 @@ class AccountingDashboardApp(ctk.CTk):
             db=self.db,
             on_tab_change=self._on_tab_change
         )
-        self.tab_view.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        self.tab_view.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
 
         # 初期データでグラフを表示
         self._update_dashboard()
@@ -108,14 +129,20 @@ class AccountingDashboardApp(ctk.CTk):
         # タブ切り替え時にデータを更新
         if tab_name == MainTabView.TAB_DASHBOARD:
             self._update_dashboard()
+        elif tab_name == MainTabView.TAB_CUSTOMER:
+            self._update_customer()
 
     def _on_filter_change(self):
         """フィルタ変更時のコールバック"""
         filter_values = self.filter_panel.get_filter_values()
         print(f"フィルタ変更: {filter_values}")
 
-        # ダッシュボードのグラフを更新
-        self._update_dashboard()
+        # 現在のタブに応じてデータを更新
+        current_tab = self.tab_view.get_current_tab()
+        if current_tab == MainTabView.TAB_DASHBOARD:
+            self._update_dashboard()
+        elif current_tab == MainTabView.TAB_CUSTOMER:
+            self._update_customer()
 
     def _update_dashboard(self):
         """ダッシュボードのグラフを更新"""
@@ -136,6 +163,66 @@ class AccountingDashboardApp(ctk.CTk):
             error_msg = f"エラー: {str(e)}"
             self._set_status(error_msg, "error")
             print(f"グラフ更新エラー: {e}")
+
+    def _update_customer(self):
+        """取引先分析タブを更新"""
+        filter_values = self.filter_panel.get_filter_values()
+
+        # ローディング表示
+        self._set_status("取引先データを更新中...", "normal")
+        self.update_idletasks()
+
+        try:
+            self.tab_view.update_customer(
+                years=filter_values["years"],
+                segments=filter_values["segments"],
+                account=filter_values["account"]
+            )
+            self._set_status("更新完了", "normal")
+        except Exception as e:
+            error_msg = f"エラー: {str(e)}"
+            self._set_status(error_msg, "error")
+            print(f"取引先データ更新エラー: {e}")
+
+    def _on_export_click(self):
+        """エクスポートボタンクリック時の処理"""
+        filter_values = self.filter_panel.get_filter_values()
+
+        # デフォルトファイル名を生成
+        default_filename = CSVExporter.get_default_filename()
+
+        # ファイル保存ダイアログを表示
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSVファイル", "*.csv"), ("すべてのファイル", "*.*")],
+            initialfile=default_filename,
+            title="CSVエクスポート"
+        )
+
+        if not filepath:
+            return  # キャンセルされた場合
+
+        self._set_status("エクスポート中...", "normal")
+        self.update_idletasks()
+
+        try:
+            exporter = CSVExporter(self.db)
+            success = exporter.export_all_data(
+                filepath=filepath,
+                years=filter_values["years"],
+                segments=filter_values["segments"],
+                account=filter_values["account"]
+            )
+
+            if success:
+                self._set_status(f"エクスポート完了: {filepath}", "normal")
+            else:
+                self._set_status("エクスポートするデータがありません", "error")
+
+        except Exception as e:
+            error_msg = f"エクスポートエラー: {str(e)}"
+            self._set_status(error_msg, "error")
+            print(f"CSVエクスポートエラー: {e}")
 
     def _set_status(self, message: str, status_type: str = "normal"):
         """
