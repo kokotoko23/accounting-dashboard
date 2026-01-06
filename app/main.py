@@ -131,6 +131,8 @@ class AccountingDashboardApp(ctk.CTk):
             self._update_dashboard()
         elif tab_name == MainTabView.TAB_CUSTOMER:
             self._update_customer()
+        elif tab_name == MainTabView.TAB_SEGMENT:
+            self._update_segment()
 
     def _on_filter_change(self):
         """フィルタ変更時のコールバック"""
@@ -143,6 +145,8 @@ class AccountingDashboardApp(ctk.CTk):
             self._update_dashboard()
         elif current_tab == MainTabView.TAB_CUSTOMER:
             self._update_customer()
+        elif current_tab == MainTabView.TAB_SEGMENT:
+            self._update_segment()
 
     def _update_dashboard(self):
         """ダッシュボードのグラフを更新"""
@@ -183,6 +187,26 @@ class AccountingDashboardApp(ctk.CTk):
             error_msg = f"エラー: {str(e)}"
             self._set_status(error_msg, "error")
             print(f"取引先データ更新エラー: {e}")
+
+    def _update_segment(self):
+        """セグメント分析タブを更新"""
+        filter_values = self.filter_panel.get_filter_values()
+
+        # ローディング表示
+        self._set_status("セグメントデータを更新中...", "normal")
+        self.update_idletasks()
+
+        try:
+            self.tab_view.update_segment(
+                years=filter_values["years"],
+                segments=filter_values["segments"],
+                account=filter_values["account"]
+            )
+            self._set_status("更新完了", "normal")
+        except Exception as e:
+            error_msg = f"エラー: {str(e)}"
+            self._set_status(error_msg, "error")
+            print(f"セグメントデータ更新エラー: {e}")
 
     def _on_export_click(self):
         """エクスポートボタンクリック時の処理"""
