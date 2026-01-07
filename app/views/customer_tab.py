@@ -383,7 +383,9 @@ class CustomerTrendPanel(ctk.CTkFrame):
 
     def _render_yearly_mode(self, results: Dict, years: List[int]):
         """年度別モード（月をX軸、年度ごとに線）"""
-        self.chart.clear()
+        # twinx()で作成された軸も含めて全てクリア
+        self.chart.figure.clear()
+        self.chart.ax = self.chart.figure.add_subplot(111)
         ax = self.chart.ax
 
         months = list(range(1, 13))
@@ -420,7 +422,9 @@ class CustomerTrendPanel(ctk.CTkFrame):
 
     def _render_continuous_mode(self, results: Dict, years: List[int]):
         """月次推移モード（年月をX軸）"""
-        self.chart.clear()
+        # twinx()で作成された軸も含めて全てクリア
+        self.chart.figure.clear()
+        self.chart.ax = self.chart.figure.add_subplot(111)
         ax = self.chart.ax
 
         sorted_years = sorted(years)
@@ -475,7 +479,9 @@ class CustomerTrendPanel(ctk.CTkFrame):
         """グラフをクリア"""
         self.cached_data = None
         self.title_label.configure(text="取引先を選択してください")
-        self.chart.clear()
+        # twinx()で作成された軸も含めて全てクリア
+        self.chart.figure.clear()
+        self.chart.ax = self.chart.figure.add_subplot(111)
         self.chart.ax.text(
             0.5, 0.5, "取引先を選択してください",
             ha="center", va="center", fontsize=10
