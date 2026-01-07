@@ -1,6 +1,6 @@
 """
 取引先分析タブ - 取引先ランキングと業種別分析
-フィルタ: 年度（複数選択）、事業部（単一選択）、業種（単一選択）
+フィルタ: 年度（複数選択）、事業部（単一選択）、業種（複数選択）
 """
 
 from typing import Callable, Dict, List, Optional
@@ -30,7 +30,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
         # フィルタ用変数
         self.year_vars: Dict[int, ctk.BooleanVar] = {}
         self.division_var = ctk.StringVar()
-        self.industry_var = ctk.StringVar()
+        self.industry_vars: Dict[str, ctk.BooleanVar] = {}
 
         self._create_widgets()
 
@@ -45,7 +45,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
         # 事業部フィルタ（単一選択）
         self._create_division_filter()
 
-        # 業種フィルタ（単一選択）
+        # 業種フィルタ（複数選択）
         self._create_industry_filter()
 
         # フィルタ状況表示
@@ -99,7 +99,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
         self.division_dropdown.pack(side="left", padx=2)
 
     def _create_industry_filter(self):
-        """業種フィルタを作成"""
+        """業種フィルタを作成（複数選択）"""
         ind_frame = ctk.CTkFrame(self, fg_color="transparent")
         ind_frame.grid(row=0, column=2, sticky="w", padx=5, pady=2)
 
@@ -107,20 +107,24 @@ class CustomerFilterPanel(ctk.CTkFrame):
             ind_frame, text="業種:", font=ctk.CTkFont(size=11, weight="bold")
         ).pack(side="left", padx=(5, 2))
 
-        self.industry_var.set("全業種")
+        ctk.CTkButton(
+            ind_frame, text="全選択", width=50, height=20,
+            command=self._select_all_industries,
+            font=ctk.CTkFont(size=10)
+        ).pack(side="left", padx=2)
 
-        self.industry_dropdown = ctk.CTkOptionMenu(
+        # 業種チェックボックス用のフレーム（横スクロール）
+        self.industry_checkbox_frame = ctk.CTkScrollableFrame(
             ind_frame,
-            variable=self.industry_var,
-            values=["全業種"],
-            command=lambda _: self._on_change(),
-            width=120,
-            height=24
+            height=24,
+            width=250,
+            orientation="horizontal",
+            fg_color="transparent"
         )
-        self.industry_dropdown.pack(side="left", padx=2)
+        self.industry_checkbox_frame.pack(side="left", padx=2)
 
-        # 初期の業種リストを更新
-        self._update_industry_list()
+        # 初期の業種リストを作成
+        self._update_industry_checkboxes()
 
     def _create_filter_status(self):
         """フィルタ状況表示を作成"""
@@ -137,21 +141,28 @@ class CustomerFilterPanel(ctk.CTkFrame):
         """フィルタ状況表示を更新"""
         years = self.get_selected_years()
         division = self.division_var.get()
-        industry = self.industry_var.get()
+        industries = self.get_selected_industries()
 
         years_str = ", ".join(f"{y}年" for y in years) if years else "未選択"
+        ind_str = "全業種" if len(industries) == len(self.industry_vars) else f"{len(industries)}業種" if industries else "未選択"
 
         self.status_label.configure(
-            text=f"表示: {years_str} / {division} / {industry}"
+            text=f"表示: {years_str} / {division} / {ind_str}"
         )
 
     def _on_division_change(self, _=None):
         """事業部変更時"""
-        self._update_industry_list()
+        self._update_industry_checkboxes()
         self._on_change()
 
-    def _update_industry_list(self):
-        """業種リストを更新"""
+    def _update_industry_checkboxes(self):
+        """業種チェックボックスを更新"""
+        # 既存のウィジェットを削除
+        for widget in self.industry_checkbox_frame.winfo_children():
+            widget.destroy()
+
+        self.industry_vars.clear()
+
         years = self.get_selected_years()
         division = self.division_var.get()
 
@@ -161,11 +172,30 @@ class CustomerFilterPanel(ctk.CTkFrame):
         latest_year = max(years)
         df = self.db.get_industry_summary_by_division(latest_year, division)
 
-        industries = ["全業種"] + df["industry"].tolist() if not df.empty else ["全業種"]
-        self.industry_dropdown.configure(values=industries)
+        if df.empty:
+            return
 
-        if self.industry_var.get() not in industries:
-            self.industry_var.set("全業種")
+        for industry in df["industry"].tolist():
+            var = ctk.BooleanVar(value=True)
+            self.industry_vars[industry] = var
+            cb = ctk.CTkCheckBox(
+                self.industry_checkbox_frame,
+                text=industry,
+                variable=var,
+                command=self._on_change,
+                width=80,
+                height=20,
+                checkbox_width=16,
+                checkbox_height=16,
+                font=ctk.CTkFont(size=10)
+            )
+            cb.pack(side="left", padx=2)
+
+    def _select_all_industries(self):
+        """全業種を選択"""
+        for var in self.industry_vars.values():
+            var.set(True)
+        self._on_change()
 
     def _on_change(self):
         """フィルタ変更時"""
@@ -180,10 +210,9 @@ class CustomerFilterPanel(ctk.CTkFrame):
         """選択された事業部を取得"""
         return self.division_var.get()
 
-    def get_selected_industry(self) -> Optional[str]:
-        """選択された業種を取得（全業種の場合はNone）"""
-        industry = self.industry_var.get()
-        return None if industry == "全業種" else industry
+    def get_selected_industries(self) -> List[str]:
+        """選択された業種を取得"""
+        return [ind for ind, var in self.industry_vars.items() if var.get()]
 
     def get_filter_values(self) -> Dict:
         """フィルタ値を取得"""
@@ -191,7 +220,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
             "years": self.get_selected_years(),
             "divisions": [self.division_var.get()],
             "division": self.division_var.get(),
-            "industry": self.get_selected_industry(),
+            "industries": self.get_selected_industries(),
             "account": "売上高"
         }
 
@@ -205,7 +234,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
         divisions = self.db.get_divisions()
         self.division_dropdown.configure(values=divisions)
 
-        self._update_industry_list()
+        self._update_industry_checkboxes()
 
 
 class CustomerRankingTable(ctk.CTkFrame):
@@ -360,7 +389,7 @@ class CustomerTab(ctk.CTkFrame):
         )
         self.industry_chart.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
 
-        # 右下: 業種別成長推移グラフ
+        # 右下: 業種別月次推移グラフ
         self.industry_trend_chart = LineChartFrame(
             self,
             figsize=(5, 3),
@@ -381,7 +410,7 @@ class CustomerTab(ctk.CTkFrame):
         filter_values = self.filter_panel.get_filter_values()
         years = filter_values["years"]
         division = filter_values["division"]
-        industry = filter_values["industry"]
+        industries = filter_values["industries"]
 
         if not years:
             return
@@ -389,23 +418,22 @@ class CustomerTab(ctk.CTkFrame):
         latest_year = max(years)
 
         # 取引先ランキングを更新（業種フィルタ適用）
-        self._update_ranking(latest_year, division, industry)
+        self._update_ranking(latest_year, division, industries)
 
-        # 業種別構成比を更新
-        self._update_industry_chart(latest_year, division)
+        # 業種別構成比を更新（業種フィルタ適用）
+        self._update_industry_chart(latest_year, division, industries)
 
-        # 業種別成長推移を更新
-        self._update_industry_trend(years, division)
+        # 業種別月次推移を更新（選択業種のみ）
+        self._update_industry_trend(years, division, industries)
 
         # 選択取引先があれば推移も更新（複数年対応）
         if self.selected_customer:
             self._update_customer_profit_trend(self.selected_customer, years, division)
 
-    def _update_ranking(self, year: int, division: str, industry: Optional[str]):
+    def _update_ranking(self, year: int, division: str, industries: List[str]):
         """取引先ランキングを更新"""
-        if industry:
-            # 業種フィルタあり
-            df = self._get_customer_ranking_by_industry(year, division, industry)
+        if industries:
+            df = self._get_customer_ranking_by_industries(year, division, industries)
         else:
             df = self.db.get_customer_ranking_by_division(year, division, limit=20)
 
@@ -423,26 +451,39 @@ class CustomerTab(ctk.CTkFrame):
 
         self.ranking_table.update_data(data)
 
-    def _get_customer_ranking_by_industry(self, year: int, division: str, industry: str):
-        """業種別取引先ランキングを取得"""
+    def _get_customer_ranking_by_industries(self, year: int, division: str, industries: List[str]):
+        """業種フィルタ付き取引先ランキングを取得"""
         import pandas as pd
         conn = self.db.connection
-        query = """
+
+        placeholders = ",".join("?" * len(industries))
+        query = f"""
             SELECT customer_name, industry, SUM(amount) as total
             FROM transactions_denormalized
             WHERE account = '売上高'
               AND year = ?
               AND division = ?
-              AND industry = ?
+              AND industry IN ({placeholders})
             GROUP BY customer_code, customer_name, industry
             ORDER BY total DESC
             LIMIT 20
         """
-        return pd.read_sql_query(query, conn, params=[year, division, industry])
+        params = [year, division] + industries
+        return pd.read_sql_query(query, conn, params=params)
 
-    def _update_industry_chart(self, year: int, division: str):
-        """業種別構成比グラフを更新"""
+    def _update_industry_chart(self, year: int, division: str, industries: List[str]):
+        """業種別構成比グラフを更新（フィルタ適用）"""
         df = self.db.get_industry_summary_by_division(year, division)
+
+        if df.empty:
+            self.industry_chart.clear()
+            self.industry_chart.set_title("業種別構成比（データなし）")
+            self.industry_chart.redraw()
+            return
+
+        # 選択業種でフィルタ
+        if industries:
+            df = df[df["industry"].isin(industries)]
 
         if df.empty:
             self.industry_chart.clear()
@@ -456,12 +497,12 @@ class CustomerTab(ctk.CTkFrame):
             title=f"業種別構成比 {year}年度"
         )
 
-    def _update_industry_trend(self, years: List[int], division: str):
-        """業種別成長推移グラフを更新"""
-        if len(years) < 2:
+    def _update_industry_trend(self, years: List[int], division: str, industries: List[str]):
+        """業種別月次推移グラフを更新"""
+        if not industries:
             self.industry_trend_chart.clear()
             self.industry_trend_chart.ax.text(
-                0.5, 0.5, "成長推移には2年以上のデータが必要です",
+                0.5, 0.5, "業種を選択してください",
                 ha="center", va="center", fontsize=10
             )
             self.industry_trend_chart.redraw()
@@ -470,57 +511,82 @@ class CustomerTab(ctk.CTkFrame):
         import pandas as pd
         conn = self.db.connection
 
-        # 年度別・業種別売上を取得
-        placeholders = ",".join("?" * len(years))
+        # 年度別・月別・業種別売上を取得
+        placeholders_years = ",".join("?" * len(years))
+        placeholders_industries = ",".join("?" * len(industries))
         query = f"""
-            SELECT year, industry, SUM(amount) as total
+            SELECT year, month, industry, SUM(amount) as total
             FROM transactions_denormalized
             WHERE account = '売上高'
-              AND year IN ({placeholders})
+              AND year IN ({placeholders_years})
               AND division = ?
-            GROUP BY year, industry
-            ORDER BY year, total DESC
+              AND industry IN ({placeholders_industries})
+            GROUP BY year, month, industry
+            ORDER BY year, month
         """
-        params = years + [division]
+        params = years + [division] + industries
         df = pd.read_sql_query(query, conn, params=params)
 
         if df.empty:
             self.industry_trend_chart.clear()
-            self.industry_trend_chart.set_title("業種別成長推移（データなし）")
+            self.industry_trend_chart.set_title("業種別月次推移（データなし）")
             self.industry_trend_chart.redraw()
             return
 
-        # 上位5業種を取得（最新年度基準）
-        latest_year = max(years)
-        top_industries = df[df["year"] == latest_year].nlargest(5, "total")["industry"].tolist()
-
+        # X軸ラベル（年月）を生成
         sorted_years = sorted(years)
-        y_data_dict = {}
+        x_labels = []
+        x_indices = []
+        idx = 0
+        for year in sorted_years:
+            for month in range(1, 13):
+                x_labels.append(f"{year}/{month}")
+                x_indices.append(idx)
+                idx += 1
 
-        for industry in top_industries:
+        # 業種ごとのデータを準備
+        y_data_dict = {}
+        for industry in industries:
             ind_data = df[df["industry"] == industry]
             values = []
             for year in sorted_years:
-                year_data = ind_data[ind_data["year"] == year]
-                if not year_data.empty:
-                    values.append(year_data["total"].values[0] / 1_000_000)
-                else:
-                    values.append(0)
-            y_data_dict[industry] = values
+                for month in range(1, 13):
+                    row = ind_data[(ind_data["year"] == year) & (ind_data["month"] == month)]
+                    if not row.empty:
+                        values.append(row["total"].values[0] / 1_000_000)
+                    else:
+                        values.append(0)
+            if any(values):
+                y_data_dict[industry] = values
 
         if not y_data_dict:
             self.industry_trend_chart.clear()
-            self.industry_trend_chart.set_title("業種別成長推移（データなし）")
+            self.industry_trend_chart.set_title("業種別月次推移（データなし）")
             self.industry_trend_chart.redraw()
             return
 
+        # X軸ラベルを間引く（表示が多すぎるため）
+        display_labels = []
+        for i, label in enumerate(x_labels):
+            if i % 3 == 0:  # 3ヶ月ごとにラベル表示
+                display_labels.append(label)
+            else:
+                display_labels.append("")
+
         self.industry_trend_chart.plot(
-            x_data=sorted_years,
+            x_data=x_indices,
             y_data_dict=y_data_dict,
-            xlabel="年度",
+            xlabel="年月",
             ylabel="売上（百万円）",
-            title=f"業種別成長推移 TOP5 - {division}"
+            title=f"業種別月次推移 - {division}"
         )
+
+        # X軸ラベルを設定
+        ax = self.industry_trend_chart.ax
+        ax.set_xticks(x_indices[::3])  # 3ヶ月ごとに目盛り
+        ax.set_xticklabels([x_labels[i] for i in range(0, len(x_labels), 3)], rotation=45, ha="right", fontsize=8)
+        self.industry_trend_chart.figure.tight_layout()
+        self.industry_trend_chart.redraw()
 
     def _on_customer_select(self, customer_name: str, industry: str):
         """取引先選択時の処理"""
