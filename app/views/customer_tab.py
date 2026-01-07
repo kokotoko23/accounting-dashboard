@@ -111,6 +111,7 @@ class CustomerTab(ctk.CTkFrame):
         # 現在のフィルタ値を保持
         self.current_years: List[int] = []
         self.current_account: str = "売上高"
+        self.selected_customer: Optional[str] = None
 
         # レイアウト設定
         self.grid_columnconfigure(0, weight=1)
@@ -137,7 +138,7 @@ class CustomerTab(ctk.CTkFrame):
         )
         self.industry_chart.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
-        # 右下: 選択取引先の月次推移
+        # 右下: 選択取引先の月次推移（売上・利益）
         self.customer_trend_chart = LineChartFrame(
             self,
             figsize=(5, 3.5),
@@ -155,7 +156,7 @@ class CustomerTab(ctk.CTkFrame):
     def update_data(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """
@@ -163,7 +164,7 @@ class CustomerTab(ctk.CTkFrame):
 
         Args:
             years: 選択された年度リスト
-            segments: 選択されたセグメントリスト
+            divisions: 選択された事業部リスト（現在未使用）
             account: 選択された科目
         """
         self.current_years = years
@@ -180,6 +181,10 @@ class CustomerTab(ctk.CTkFrame):
 
         # 業種別構成比を更新
         self._update_industry_chart(latest_year, account)
+
+        # 選択取引先があれば推移も更新
+        if self.selected_customer:
+            self._update_customer_profit_trend(self.selected_customer)
 
     def _update_ranking(self, year: int, account: str):
         """取引先ランキングを更新"""
@@ -221,41 +226,46 @@ class CustomerTab(ctk.CTkFrame):
         if not self.current_years:
             return
 
-        self._update_customer_trend(customer_name)
+        self.selected_customer = customer_name
+        self._update_customer_profit_trend(customer_name)
 
-    def _update_customer_trend(self, customer_name: str):
-        """選択取引先の月次推移を更新"""
+    def _update_customer_profit_trend(self, customer_name: str):
+        """選択取引先の月次売上・利益推移を更新"""
         if not self.current_years:
             return
 
         conn = self.db.connection
-        account = self.current_account
+        latest_year = max(self.current_years)
 
-        # 年度ごとの月次データを取得
+        # 月次データを取得（売上・利益）
         months = list(range(1, 13))
+
+        query = """
+            SELECT
+                month,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) as sales,
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as cost,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) -
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as profit
+            FROM transactions_denormalized
+            WHERE customer_name = ?
+              AND year = ?
+            GROUP BY month
+            ORDER BY month
+        """
+        cursor = conn.execute(query, [customer_name, latest_year])
+        results = {row[0]: {"sales": row[1], "profit": row[3]} for row in cursor.fetchall()}
+
         y_data_dict = {}
 
-        for year in sorted(self.current_years):
-            placeholders = ",".join("?" * 12)
-            query = f"""
-                SELECT month, SUM(amount) as total
-                FROM transactions_denormalized
-                WHERE customer_name = ?
-                  AND account = ?
-                  AND year = ?
-                  AND month IN ({placeholders})
-                GROUP BY month
-                ORDER BY month
-            """
-            params = [customer_name, account, year] + months
+        # 売上高データ
+        sales_values = [results.get(m, {}).get("sales", 0) / 1_000_000 for m in months]
+        profit_values = [results.get(m, {}).get("profit", 0) / 1_000_000 for m in months]
 
-            cursor = conn.execute(query, params)
-            results = {row[0]: row[1] for row in cursor.fetchall()}
+        y_data_dict["売上高"] = sales_values
+        y_data_dict["売上総利益"] = profit_values
 
-            monthly_values = [results.get(m, 0) / 1_000_000 for m in months]
-            y_data_dict[f"{year}年度"] = monthly_values
-
-        if not y_data_dict:
+        if not any(sales_values) and not any(profit_values):
             self.customer_trend_chart.clear()
             self.customer_trend_chart.set_title("データなし")
             self.customer_trend_chart.redraw()
@@ -266,7 +276,7 @@ class CustomerTab(ctk.CTkFrame):
             y_data_dict=y_data_dict,
             xlabel="月",
             ylabel="金額（百万円）",
-            title=f"{customer_name} - {account}"
+            title=f"{customer_name} - 売上・利益推移 {latest_year}年度"
         )
 
     def destroy(self):

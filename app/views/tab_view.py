@@ -9,7 +9,7 @@ import customtkinter as ctk
 from app.models.database import AccountingDatabase
 from app.views.dashboard_tab import DashboardTab
 from app.views.customer_tab import CustomerTab
-from app.views.segment_tab import SegmentTab
+from app.views.division_tab import DivisionTab
 
 
 class MainTabView(ctk.CTkTabview):
@@ -17,7 +17,7 @@ class MainTabView(ctk.CTkTabview):
 
     TAB_DASHBOARD = "ダッシュボード"
     TAB_CUSTOMER = "取引先分析"
-    TAB_SEGMENT = "セグメント分析"
+    TAB_DIVISION = "事業部分析"
 
     def __init__(
         self,
@@ -57,10 +57,10 @@ class MainTabView(ctk.CTkTabview):
         self.customer_frame = self.tab(self.TAB_CUSTOMER)
         self._create_customer_content()
 
-        # セグメント分析タブ
-        self.add(self.TAB_SEGMENT)
-        self.segment_frame = self.tab(self.TAB_SEGMENT)
-        self._create_segment_content()
+        # 事業部分析タブ
+        self.add(self.TAB_DIVISION)
+        self.division_frame = self.tab(self.TAB_DIVISION)
+        self._create_division_content()
 
         # デフォルトはダッシュボードタブ
         self.set(self.TAB_DASHBOARD)
@@ -74,7 +74,7 @@ class MainTabView(ctk.CTkTabview):
     def update_dashboard(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """
@@ -82,11 +82,11 @@ class MainTabView(ctk.CTkTabview):
 
         Args:
             years: 選択された年度リスト
-            segments: 選択されたセグメントリスト
+            divisions: 選択された事業部リスト
             account: 選択された科目
         """
         if hasattr(self, "dashboard_tab"):
-            self.dashboard_tab.update_charts(years, segments, account)
+            self.dashboard_tab.update_charts(years, divisions, account)
 
     def _create_customer_content(self):
         """取引先分析タブの内容を作成"""
@@ -96,7 +96,7 @@ class MainTabView(ctk.CTkTabview):
     def update_customer(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """
@@ -104,33 +104,33 @@ class MainTabView(ctk.CTkTabview):
 
         Args:
             years: 選択された年度リスト
-            segments: 選択されたセグメントリスト
+            divisions: 選択された事業部リスト
             account: 選択された科目
         """
         if hasattr(self, "customer_tab"):
-            self.customer_tab.update_data(years, segments, account)
+            self.customer_tab.update_data(years, divisions, account)
 
-    def _create_segment_content(self):
-        """セグメント分析タブの内容を作成"""
-        self.segment_tab = SegmentTab(self.segment_frame, db=self.db)
-        self.segment_tab.pack(fill="both", expand=True)
+    def _create_division_content(self):
+        """事業部分析タブの内容を作成"""
+        self.division_tab = DivisionTab(self.division_frame, db=self.db)
+        self.division_tab.pack(fill="both", expand=True)
 
-    def update_segment(
+    def update_division(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """
-        セグメント分析タブを更新
+        事業部分析タブを更新
 
         Args:
             years: 選択された年度リスト
-            segments: 選択されたセグメントリスト
+            divisions: 選択された事業部リスト
             account: 選択された科目
         """
-        if hasattr(self, "segment_tab"):
-            self.segment_tab.update_data(years, segments, account)
+        if hasattr(self, "division_tab"):
+            self.division_tab.update_data(years, divisions, account)
 
     def _on_tab_changed(self):
         """タブ変更時の処理"""

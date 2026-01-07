@@ -14,7 +14,7 @@ class FilterPanel(ctk.CTkFrame):
         self,
         parent,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         accounts: List[str],
         on_filter_change: Optional[Callable[[], None]] = None,
         **kwargs
@@ -25,20 +25,20 @@ class FilterPanel(ctk.CTkFrame):
         Args:
             parent: 親ウィジェット
             years: 年度リスト
-            segments: セグメントリスト
+            divisions: 事業部リスト
             accounts: 科目リスト
             on_filter_change: フィルタ変更時のコールバック関数
         """
         super().__init__(parent, **kwargs)
 
         self.years = years
-        self.segments = segments
+        self.divisions = divisions
         self.accounts = accounts
         self.on_filter_change = on_filter_change
 
         # チェックボックスの状態を保持する変数
         self.year_vars: Dict[int, ctk.BooleanVar] = {}
-        self.segment_vars: Dict[str, ctk.BooleanVar] = {}
+        self.division_vars: Dict[str, ctk.BooleanVar] = {}
         self.account_var = ctk.StringVar(value="売上高")
 
         self._create_widgets()
@@ -56,8 +56,8 @@ class FilterPanel(ctk.CTkFrame):
         # 年度選択セクション
         self._create_year_section()
 
-        # セグメント選択セクション
-        self._create_segment_section()
+        # 事業部選択セクション
+        self._create_division_section()
 
         # 科目選択セクション
         self._create_account_section()
@@ -114,22 +114,22 @@ class FilterPanel(ctk.CTkFrame):
             )
             cb.pack(anchor="w", pady=2)
 
-    def _create_segment_section(self):
-        """セグメント選択セクションを作成"""
+    def _create_division_section(self):
+        """事業部選択セクションを作成"""
         # セクションラベル
-        segment_label = ctk.CTkLabel(
+        division_label = ctk.CTkLabel(
             self,
-            text="セグメント",
+            text="事業部",
             font=ctk.CTkFont(size=14, weight="bold")
         )
-        segment_label.pack(pady=(20, 5), padx=15, anchor="w")
+        division_label.pack(pady=(20, 5), padx=15, anchor="w")
 
-        # セグメントフレーム
-        segment_frame = ctk.CTkFrame(self, fg_color="transparent")
-        segment_frame.pack(fill="x", padx=15)
+        # 事業部フレーム
+        division_frame = ctk.CTkFrame(self, fg_color="transparent")
+        division_frame.pack(fill="x", padx=15)
 
         # 全選択/解除ボタン
-        btn_frame = ctk.CTkFrame(segment_frame, fg_color="transparent")
+        btn_frame = ctk.CTkFrame(division_frame, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(0, 5))
 
         select_all_btn = ctk.CTkButton(
@@ -138,7 +138,7 @@ class FilterPanel(ctk.CTkFrame):
             width=60,
             height=24,
             font=ctk.CTkFont(size=11),
-            command=lambda: self._select_all_segments(True)
+            command=lambda: self._select_all_divisions(True)
         )
         select_all_btn.pack(side="left", padx=(0, 5))
 
@@ -148,18 +148,18 @@ class FilterPanel(ctk.CTkFrame):
             width=60,
             height=24,
             font=ctk.CTkFont(size=11),
-            command=lambda: self._select_all_segments(False)
+            command=lambda: self._select_all_divisions(False)
         )
         deselect_all_btn.pack(side="left")
 
-        # セグメントチェックボックス
-        for segment in self.segments:
+        # 事業部チェックボックス
+        for division in self.divisions:
             var = ctk.BooleanVar(value=True)  # デフォルトは全選択
-            self.segment_vars[segment] = var
+            self.division_vars[division] = var
 
             cb = ctk.CTkCheckBox(
-                segment_frame,
-                text=segment,
+                division_frame,
+                text=division,
                 variable=var,
                 command=self._on_filter_changed,
                 font=ctk.CTkFont(size=13)
@@ -197,9 +197,9 @@ class FilterPanel(ctk.CTkFrame):
             var.set(select)
         self._on_filter_changed()
 
-    def _select_all_segments(self, select: bool):
-        """全セグメントを選択/解除"""
-        for var in self.segment_vars.values():
+    def _select_all_divisions(self, select: bool):
+        """全事業部を選択/解除"""
+        for var in self.division_vars.values():
             var.set(select)
         self._on_filter_changed()
 
@@ -212,9 +212,9 @@ class FilterPanel(ctk.CTkFrame):
         """選択中の年度リストを取得"""
         return [year for year, var in self.year_vars.items() if var.get()]
 
-    def get_selected_segments(self) -> List[str]:
-        """選択中のセグメントリストを取得"""
-        return [seg for seg, var in self.segment_vars.items() if var.get()]
+    def get_selected_divisions(self) -> List[str]:
+        """選択中の事業部リストを取得"""
+        return [div for div, var in self.division_vars.items() if var.get()]
 
     def get_selected_account(self) -> str:
         """選択中の科目を取得"""
@@ -224,6 +224,6 @@ class FilterPanel(ctk.CTkFrame):
         """現在のフィルタ値を辞書で取得"""
         return {
             "years": self.get_selected_years(),
-            "segments": self.get_selected_segments(),
+            "divisions": self.get_selected_divisions(),
             "account": self.get_selected_account()
         }

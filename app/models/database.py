@@ -64,6 +64,21 @@ class AccountingDatabase:
         df = pd.read_sql_query(query, self.connection)
         return df["segment"].tolist()
 
+    def get_divisions(self) -> List[str]:
+        """
+        事業部リストを取得
+
+        Returns:
+            事業部名のリスト
+        """
+        query = """
+            SELECT DISTINCT division
+            FROM transactions_denormalized
+            ORDER BY division
+        """
+        df = pd.read_sql_query(query, self.connection)
+        return df["division"].tolist()
+
     def get_accounts(self) -> List[str]:
         """
         科目リストを取得
@@ -82,36 +97,36 @@ class AccountingDatabase:
     def get_monthly_data(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ) -> pd.DataFrame:
         """
-        月次データを取得
+        月次データを取得（事業部フィルタ）
 
         Args:
             years: 年度リスト
-            segments: セグメントリスト
+            divisions: 事業部リスト
             account: 科目名
 
         Returns:
             月次集計データ（year, month, total）
         """
-        if not years or not segments:
+        if not years or not divisions:
             return pd.DataFrame(columns=["year", "month", "total"])
 
         placeholders_years = ",".join("?" * len(years))
-        placeholders_segments = ",".join("?" * len(segments))
+        placeholders_divisions = ",".join("?" * len(divisions))
 
         query = f"""
             SELECT year, month, SUM(amount) as total
             FROM transactions_denormalized
             WHERE account = ?
               AND year IN ({placeholders_years})
-              AND segment IN ({placeholders_segments})
+              AND division IN ({placeholders_divisions})
             GROUP BY year, month
             ORDER BY year, month
         """
-        params = [account] + years + segments
+        params = [account] + years + divisions
         return pd.read_sql_query(query, self.connection, params=params)
 
     def get_segment_summary(
@@ -143,6 +158,107 @@ class AccountingDatabase:
             ORDER BY total DESC
         """
         params = [account] + years
+        return pd.read_sql_query(query, self.connection, params=params)
+
+    def get_division_summary(
+        self,
+        years: List[int],
+        account: str
+    ) -> pd.DataFrame:
+        """
+        事業部別集計を取得
+
+        Args:
+            years: 年度リスト
+            account: 科目名
+
+        Returns:
+            事業部別集計データ（division, total）
+        """
+        if not years:
+            return pd.DataFrame(columns=["division", "total"])
+
+        placeholders = ",".join("?" * len(years))
+
+        query = f"""
+            SELECT division, SUM(amount) as total
+            FROM transactions_denormalized
+            WHERE account = ?
+              AND year IN ({placeholders})
+            GROUP BY division
+            ORDER BY total DESC
+        """
+        params = [account] + years
+        return pd.read_sql_query(query, self.connection, params=params)
+
+    def get_division_profit_summary(
+        self,
+        years: List[int]
+    ) -> pd.DataFrame:
+        """
+        事業部別の売上・利益集計を取得
+
+        Args:
+            years: 年度リスト
+
+        Returns:
+            事業部別集計データ（division, sales, cost, profit）
+        """
+        if not years:
+            return pd.DataFrame(columns=["division", "sales", "cost", "profit"])
+
+        placeholders = ",".join("?" * len(years))
+
+        query = f"""
+            SELECT
+                division,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) as sales,
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as cost,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) -
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as profit
+            FROM transactions_denormalized
+            WHERE year IN ({placeholders})
+            GROUP BY division
+            ORDER BY sales DESC
+        """
+        params = years
+        return pd.read_sql_query(query, self.connection, params=params)
+
+    def get_division_monthly_profit(
+        self,
+        years: List[int],
+        divisions: List[str]
+    ) -> pd.DataFrame:
+        """
+        事業部別の月次売上・利益推移を取得
+
+        Args:
+            years: 年度リスト
+            divisions: 事業部リスト
+
+        Returns:
+            月次集計データ（year, month, sales, cost, profit）
+        """
+        if not years or not divisions:
+            return pd.DataFrame(columns=["year", "month", "sales", "cost", "profit"])
+
+        placeholders_years = ",".join("?" * len(years))
+        placeholders_divisions = ",".join("?" * len(divisions))
+
+        query = f"""
+            SELECT
+                year, month,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) as sales,
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as cost,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) -
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as profit
+            FROM transactions_denormalized
+            WHERE year IN ({placeholders_years})
+              AND division IN ({placeholders_divisions})
+            GROUP BY year, month
+            ORDER BY year, month
+        """
+        params = years + divisions
         return pd.read_sql_query(query, self.connection, params=params)
 
     def get_customer_ranking(
@@ -201,6 +317,157 @@ class AccountingDatabase:
         return pd.read_sql_query(
             query, self.connection, params=[account, year]
         )
+
+    def get_customer_profit_trend(
+        self,
+        years: List[int],
+        customer_code: str
+    ) -> pd.DataFrame:
+        """
+        取引先別の月次売上・利益推移を取得
+
+        Args:
+            years: 年度リスト
+            customer_code: 取引先コード
+
+        Returns:
+            月次集計データ（year, month, sales, cost, profit）
+        """
+        if not years:
+            return pd.DataFrame(columns=["year", "month", "sales", "cost", "profit"])
+
+        placeholders = ",".join("?" * len(years))
+
+        query = f"""
+            SELECT
+                year, month,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) as sales,
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as cost,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) -
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as profit
+            FROM transactions_denormalized
+            WHERE year IN ({placeholders})
+              AND customer_code = ?
+            GROUP BY year, month
+            ORDER BY year, month
+        """
+        params = years + [customer_code]
+        return pd.read_sql_query(query, self.connection, params=params)
+
+    def get_industry_profit_trend(
+        self,
+        years: List[int],
+        industry: str
+    ) -> pd.DataFrame:
+        """
+        業種別の月次売上・利益推移を取得
+
+        Args:
+            years: 年度リスト
+            industry: 業種名
+
+        Returns:
+            月次集計データ（year, month, sales, cost, profit）
+        """
+        if not years:
+            return pd.DataFrame(columns=["year", "month", "sales", "cost", "profit"])
+
+        placeholders = ",".join("?" * len(years))
+
+        query = f"""
+            SELECT
+                year, month,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) as sales,
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as cost,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) -
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as profit
+            FROM transactions_denormalized
+            WHERE year IN ({placeholders})
+              AND industry = ?
+            GROUP BY year, month
+            ORDER BY year, month
+        """
+        params = years + [industry]
+        return pd.read_sql_query(query, self.connection, params=params)
+
+    def get_dept_codes(self) -> pd.DataFrame:
+        """
+        部門コードリストを取得
+
+        Returns:
+            部門コードと部門名のDataFrame（dept_code, dept_name）
+        """
+        query = """
+            SELECT DISTINCT dept_code, dept_name
+            FROM transactions_denormalized
+            ORDER BY dept_code
+        """
+        return pd.read_sql_query(query, self.connection)
+
+    def get_dept_summary(
+        self,
+        years: List[int],
+        account: str
+    ) -> pd.DataFrame:
+        """
+        部門別集計を取得
+
+        Args:
+            years: 年度リスト
+            account: 科目名
+
+        Returns:
+            部門別集計データ（dept_code, dept_name, total）
+        """
+        if not years:
+            return pd.DataFrame(columns=["dept_code", "dept_name", "total"])
+
+        placeholders = ",".join("?" * len(years))
+
+        query = f"""
+            SELECT dept_code, MAX(dept_name) as dept_name, SUM(amount) as total
+            FROM transactions_denormalized
+            WHERE account = ?
+              AND year IN ({placeholders})
+            GROUP BY dept_code
+            ORDER BY total DESC
+        """
+        params = [account] + years
+        return pd.read_sql_query(query, self.connection, params=params)
+
+    def get_dept_profit_summary(
+        self,
+        years: List[int]
+    ) -> pd.DataFrame:
+        """
+        部門別の売上・利益集計を取得
+
+        Args:
+            years: 年度リスト
+
+        Returns:
+            部門別集計データ（dept_code, dept_name, sales, cost, profit）
+        """
+        if not years:
+            return pd.DataFrame(columns=["dept_code", "dept_name", "sales", "cost", "profit"])
+
+        placeholders = ",".join("?" * len(years))
+
+        query = f"""
+            SELECT
+                dept_code,
+                MAX(dept_name) as dept_name,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) as sales,
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as cost,
+                SUM(CASE WHEN account = '売上高' THEN amount ELSE 0 END) -
+                SUM(CASE WHEN account = '売上原価' THEN amount ELSE 0 END) as profit
+            FROM transactions_denormalized
+            WHERE year IN ({placeholders})
+            GROUP BY dept_code
+            ORDER BY sales DESC
+        """
+        params = years
+        return pd.read_sql_query(query, self.connection, params=params)
 
     def close(self):
         """データベース接続を閉じる"""
