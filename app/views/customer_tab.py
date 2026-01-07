@@ -7,9 +7,10 @@ from typing import Callable, Dict, List, Optional
 
 import customtkinter as ctk
 from tkinter import ttk
+import numpy as np
 
 from app.models.database import AccountingDatabase
-from app.utils.chart_base import PieChartFrame, LineChartFrame
+from app.utils.chart_base import PieChartFrame, LineChartFrame, ChartFrameBase
 
 
 class CustomerFilterPanel(ctk.CTkFrame):
@@ -36,19 +37,11 @@ class CustomerFilterPanel(ctk.CTkFrame):
 
     def _create_widgets(self):
         """ウィジェットを作成"""
-        # 横並びレイアウト
         self.grid_columnconfigure((0, 1, 2), weight=1)
 
-        # 年度フィルタ
         self._create_year_filter()
-
-        # 事業部フィルタ（単一選択）
         self._create_division_filter()
-
-        # 業種フィルタ（複数選択）
         self._create_industry_filter()
-
-        # フィルタ状況表示
         self._create_filter_status()
 
     def _create_year_filter(self):
@@ -77,7 +70,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
             cb.pack(side="left", padx=2)
 
     def _create_division_filter(self):
-        """事業部フィルタを作成（単一選択ドロップダウン）"""
+        """事業部フィルタを作成"""
         div_frame = ctk.CTkFrame(self, fg_color="transparent")
         div_frame.grid(row=0, column=1, sticky="w", padx=5, pady=2)
 
@@ -99,7 +92,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
         self.division_dropdown.pack(side="left", padx=2)
 
     def _create_industry_filter(self):
-        """業種フィルタを作成（複数選択）"""
+        """業種フィルタを作成"""
         ind_frame = ctk.CTkFrame(self, fg_color="transparent")
         ind_frame.grid(row=0, column=2, sticky="w", padx=5, pady=2)
 
@@ -113,7 +106,6 @@ class CustomerFilterPanel(ctk.CTkFrame):
             font=ctk.CTkFont(size=10)
         ).pack(side="left", padx=2)
 
-        # 業種チェックボックス用のフレーム（横スクロール）
         self.industry_checkbox_frame = ctk.CTkScrollableFrame(
             ind_frame,
             height=24,
@@ -123,7 +115,6 @@ class CustomerFilterPanel(ctk.CTkFrame):
         )
         self.industry_checkbox_frame.pack(side="left", padx=2)
 
-        # 初期の業種リストを作成
         self._update_industry_checkboxes()
 
     def _create_filter_status(self):
@@ -157,7 +148,6 @@ class CustomerFilterPanel(ctk.CTkFrame):
 
     def _update_industry_checkboxes(self):
         """業種チェックボックスを更新"""
-        # 既存のウィジェットを削除
         for widget in self.industry_checkbox_frame.winfo_children():
             widget.destroy()
 
@@ -203,19 +193,15 @@ class CustomerFilterPanel(ctk.CTkFrame):
         self.on_filter_change()
 
     def get_selected_years(self) -> List[int]:
-        """選択された年度を取得"""
         return [year for year, var in self.year_vars.items() if var.get()]
 
     def get_selected_division(self) -> str:
-        """選択された事業部を取得"""
         return self.division_var.get()
 
     def get_selected_industries(self) -> List[str]:
-        """選択された業種を取得"""
         return [ind for ind, var in self.industry_vars.items() if var.get()]
 
     def get_filter_values(self) -> Dict:
-        """フィルタ値を取得"""
         return {
             "years": self.get_selected_years(),
             "divisions": [self.division_var.get()],
@@ -225,7 +211,7 @@ class CustomerFilterPanel(ctk.CTkFrame):
         }
 
     def refresh(self):
-        """フィルタを再作成（データ更新後）"""
+        """フィルタを再作成"""
         new_years = self.db.get_years()
         for year in new_years:
             if year not in self.year_vars:
@@ -250,12 +236,10 @@ class CustomerRankingTable(ctk.CTkFrame):
 
         self.on_select = on_select
 
-        # Treeviewのスタイル設定
         style = ttk.Style()
         style.configure("Treeview", rowheight=22, font=("", 10))
         style.configure("Treeview.Heading", font=("", 10, "bold"))
 
-        # ヘッダーラベル
         header = ctk.CTkLabel(
             self,
             text="取引先ランキング TOP20",
@@ -263,7 +247,6 @@ class CustomerRankingTable(ctk.CTkFrame):
         )
         header.pack(pady=(5, 3), anchor="w", padx=10)
 
-        # Treeview作成
         columns = ("rank", "customer", "industry", "amount")
         self.tree = ttk.Treeview(
             self,
@@ -272,7 +255,6 @@ class CustomerRankingTable(ctk.CTkFrame):
             height=12
         )
 
-        # 列の設定
         self.tree.heading("rank", text="順位")
         self.tree.heading("customer", text="取引先名")
         self.tree.heading("industry", text="業種")
@@ -283,34 +265,222 @@ class CustomerRankingTable(ctk.CTkFrame):
         self.tree.column("industry", width=80)
         self.tree.column("amount", width=100, anchor="e")
 
-        # スクロールバー
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         self.tree.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=3)
         scrollbar.pack(side="right", fill="y", pady=3, padx=(0, 10))
 
-        # 選択イベント
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
 
     def _on_tree_select(self, event):
-        """行選択時の処理"""
         selection = self.tree.selection()
         if selection and self.on_select:
             item = self.tree.item(selection[0])
             values = item["values"]
             if len(values) >= 2:
-                customer_name = values[1]
-                industry = values[2]
-                self.on_select(customer_name, industry)
+                self.on_select(values[1], values[2])
 
     def update_data(self, data: list):
-        """データを更新"""
         for item in self.tree.get_children():
             self.tree.delete(item)
-
         for row in data:
             self.tree.insert("", "end", values=row)
+
+
+class CustomerTrendPanel(ctk.CTkFrame):
+    """取引先推移グラフパネル（表示切替付き）"""
+
+    def __init__(self, parent, **kwargs):
+        super().__init__(parent, **kwargs)
+
+        self.current_mode = "yearly"  # "yearly" or "continuous"
+        self.cached_data = None
+
+        # ヘッダー（タイトル + 切替ボタン）
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", padx=5, pady=(5, 0))
+
+        self.title_label = ctk.CTkLabel(
+            header_frame,
+            text="取引先を選択してください",
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        self.title_label.pack(side="left", padx=5)
+
+        # 表示切替ボタン
+        self.mode_var = ctk.StringVar(value="yearly")
+        mode_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        mode_frame.pack(side="right", padx=5)
+
+        ctk.CTkRadioButton(
+            mode_frame,
+            text="年度別",
+            variable=self.mode_var,
+            value="yearly",
+            command=self._on_mode_change,
+            width=70,
+            height=20,
+            radiobutton_width=14,
+            radiobutton_height=14,
+            font=ctk.CTkFont(size=10)
+        ).pack(side="left", padx=2)
+
+        ctk.CTkRadioButton(
+            mode_frame,
+            text="月次推移",
+            variable=self.mode_var,
+            value="continuous",
+            command=self._on_mode_change,
+            width=70,
+            height=20,
+            radiobutton_width=14,
+            radiobutton_height=14,
+            font=ctk.CTkFont(size=10)
+        ).pack(side="left", padx=2)
+
+        # グラフエリア
+        self.chart = ChartFrameBase(self, figsize=(5, 2.5), dpi=100)
+        self.chart.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # 初期メッセージ
+        self.chart.ax.text(
+            0.5, 0.5, "取引先を選択してください",
+            ha="center", va="center", fontsize=10
+        )
+        self.chart.redraw()
+
+    def _on_mode_change(self):
+        """表示モード変更時"""
+        self.current_mode = self.mode_var.get()
+        if self.cached_data:
+            self._render_chart()
+
+    def update_data(self, customer_name: str, results: Dict, years: List[int]):
+        """データを更新"""
+        self.cached_data = {
+            "customer_name": customer_name,
+            "results": results,
+            "years": years
+        }
+        self._render_chart()
+
+    def _render_chart(self):
+        """グラフを描画"""
+        if not self.cached_data:
+            return
+
+        customer_name = self.cached_data["customer_name"]
+        results = self.cached_data["results"]
+        years = self.cached_data["years"]
+
+        self.title_label.configure(text=f"{customer_name} - 売上・利益推移")
+
+        if self.current_mode == "yearly":
+            self._render_yearly_mode(results, years)
+        else:
+            self._render_continuous_mode(results, years)
+
+    def _render_yearly_mode(self, results: Dict, years: List[int]):
+        """年度別モード（月をX軸、年度ごとに線）"""
+        self.chart.clear()
+        ax = self.chart.ax
+
+        months = list(range(1, 13))
+        sorted_years = sorted(years)
+        colors = ["#1976D2", "#4CAF50", "#FF9800", "#9C27B0"]
+
+        # 各年度の売上を折れ線で
+        for i, year in enumerate(sorted_years):
+            if year in results:
+                sales_values = [results[year].get(m, {}).get("sales", 0) / 1_000_000 for m in months]
+                if any(sales_values):
+                    ax.plot(months, sales_values, marker="o", markersize=3,
+                            label=f"{year}年 売上", color=colors[i % len(colors)], linewidth=1.5)
+
+        # 最新年の利益を破線で
+        if sorted_years:
+            latest_year = sorted_years[-1]
+            if latest_year in results:
+                profit_values = [results[latest_year].get(m, {}).get("profit", 0) / 1_000_000 for m in months]
+                if any(profit_values):
+                    ax.plot(months, profit_values, marker="s", markersize=3,
+                            label=f"{latest_year}年 利益", color="#E53935",
+                            linestyle="--", linewidth=1.5)
+
+        ax.set_xlabel("月", fontsize=9)
+        ax.set_ylabel("金額（百万円）", fontsize=9)
+        ax.set_xticks(months)
+        ax.legend(loc="upper right", fontsize=8)
+        ax.grid(axis="y", alpha=0.3)
+        ax.tick_params(labelsize=8)
+
+        self.chart.figure.tight_layout()
+        self.chart.redraw()
+
+    def _render_continuous_mode(self, results: Dict, years: List[int]):
+        """月次推移モード（年月をX軸）"""
+        self.chart.clear()
+        ax = self.chart.ax
+
+        sorted_years = sorted(years)
+
+        # X軸データを生成
+        x_labels = []
+        sales_values = []
+        profit_values = []
+
+        for year in sorted_years:
+            for month in range(1, 13):
+                x_labels.append(f"{year}/{month}")
+                if year in results:
+                    sales_values.append(results[year].get(month, {}).get("sales", 0) / 1_000_000)
+                    profit_values.append(results[year].get(month, {}).get("profit", 0) / 1_000_000)
+                else:
+                    sales_values.append(0)
+                    profit_values.append(0)
+
+        x_indices = list(range(len(x_labels)))
+
+        # 売上は棒グラフ
+        ax.bar(x_indices, sales_values, color="#1976D2", alpha=0.7, label="売上高", width=0.8)
+
+        # 利益は折れ線
+        ax2 = ax.twinx()
+        ax2.plot(x_indices, profit_values, color="#E53935", marker="o", markersize=2,
+                 label="売上総利益", linewidth=1.5)
+
+        ax.set_xlabel("年月", fontsize=9)
+        ax.set_ylabel("売上（百万円）", fontsize=9, color="#1976D2")
+        ax2.set_ylabel("利益（百万円）", fontsize=9, color="#E53935")
+
+        # X軸ラベルを間引く
+        tick_positions = list(range(0, len(x_labels), 3))
+        ax.set_xticks(tick_positions)
+        ax.set_xticklabels([x_labels[i] for i in tick_positions], rotation=45, ha="right", fontsize=7)
+
+        ax.tick_params(labelsize=8)
+        ax2.tick_params(labelsize=8)
+
+        # 凡例を統合
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=8)
+
+        ax.grid(axis="y", alpha=0.3)
+        self.chart.figure.tight_layout()
+        self.chart.redraw()
+
+    def clear(self):
+        """グラフをクリア"""
+        self.cached_data = None
+        self.title_label.configure(text="取引先を選択してください")
+        self.chart.clear()
+        self.chart.ax.text(
+            0.5, 0.5, "取引先を選択してください",
+            ha="center", va="center", fontsize=10
+        )
+        self.chart.redraw()
 
 
 class CustomerTab(ctk.CTkFrame):
@@ -329,23 +499,16 @@ class CustomerTab(ctk.CTkFrame):
         self._owns_db = db is None
         self.set_status = set_status
 
-        # 選択中の取引先
         self.selected_customer: Optional[str] = None
 
-        # レイアウト設定（左右2列、上下2行）
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=0)  # フィルタ
-        self.grid_rowconfigure(1, weight=1)  # 上段
-        self.grid_rowconfigure(2, weight=1)  # 下段
+        self.grid_rowconfigure(0, weight=0)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=1)
 
-        # フィルタパネルを作成
         self._create_filter_panel()
-
-        # ウィジェットを作成
         self._create_widgets()
-
-        # 初期データを表示
         self._update_data()
 
     def _create_filter_panel(self):
@@ -366,20 +529,9 @@ class CustomerTab(ctk.CTkFrame):
         )
         self.ranking_table.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-        # 左下: 選択取引先の月次推移（複数年対応）
-        self.customer_trend_chart = LineChartFrame(
-            self,
-            figsize=(5, 3),
-            dpi=100
-        )
-        self.customer_trend_chart.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
-
-        # 初期メッセージ
-        self.customer_trend_chart.ax.text(
-            0.5, 0.5, "取引先を選択してください",
-            ha="center", va="center", fontsize=12
-        )
-        self.customer_trend_chart.redraw()
+        # 左下: 選択取引先の推移（切替付き）
+        self.customer_trend_panel = CustomerTrendPanel(self)
+        self.customer_trend_panel.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
         # 右上: 業種別構成比グラフ
         self.industry_chart = PieChartFrame(
@@ -417,16 +569,10 @@ class CustomerTab(ctk.CTkFrame):
 
         latest_year = max(years)
 
-        # 取引先ランキングを更新（業種フィルタ適用）
         self._update_ranking(latest_year, division, industries)
-
-        # 業種別構成比を更新（業種フィルタ適用）
         self._update_industry_chart(latest_year, division, industries)
-
-        # 業種別月次推移を更新（選択業種のみ）
         self._update_industry_trend(years, division, industries)
 
-        # 選択取引先があれば推移も更新（複数年対応）
         if self.selected_customer:
             self._update_customer_profit_trend(self.selected_customer, years, division)
 
@@ -472,7 +618,7 @@ class CustomerTab(ctk.CTkFrame):
         return pd.read_sql_query(query, conn, params=params)
 
     def _update_industry_chart(self, year: int, division: str, industries: List[str]):
-        """業種別構成比グラフを更新（フィルタ適用）"""
+        """業種別構成比グラフを更新"""
         df = self.db.get_industry_summary_by_division(year, division)
 
         if df.empty:
@@ -481,7 +627,6 @@ class CustomerTab(ctk.CTkFrame):
             self.industry_chart.redraw()
             return
 
-        # 選択業種でフィルタ
         if industries:
             df = df[df["industry"].isin(industries)]
 
@@ -511,7 +656,6 @@ class CustomerTab(ctk.CTkFrame):
         import pandas as pd
         conn = self.db.connection
 
-        # 年度別・月別・業種別売上を取得
         placeholders_years = ",".join("?" * len(years))
         placeholders_industries = ",".join("?" * len(industries))
         query = f"""
@@ -533,7 +677,6 @@ class CustomerTab(ctk.CTkFrame):
             self.industry_trend_chart.redraw()
             return
 
-        # X軸ラベル（年月）を生成
         sorted_years = sorted(years)
         x_labels = []
         x_indices = []
@@ -544,7 +687,6 @@ class CustomerTab(ctk.CTkFrame):
                 x_indices.append(idx)
                 idx += 1
 
-        # 業種ごとのデータを準備
         y_data_dict = {}
         for industry in industries:
             ind_data = df[df["industry"] == industry]
@@ -565,14 +707,6 @@ class CustomerTab(ctk.CTkFrame):
             self.industry_trend_chart.redraw()
             return
 
-        # X軸ラベルを間引く（表示が多すぎるため）
-        display_labels = []
-        for i, label in enumerate(x_labels):
-            if i % 3 == 0:  # 3ヶ月ごとにラベル表示
-                display_labels.append(label)
-            else:
-                display_labels.append("")
-
         self.industry_trend_chart.plot(
             x_data=x_indices,
             y_data_dict=y_data_dict,
@@ -581,9 +715,8 @@ class CustomerTab(ctk.CTkFrame):
             title=f"業種別月次推移 - {division}"
         )
 
-        # X軸ラベルを設定
         ax = self.industry_trend_chart.ax
-        ax.set_xticks(x_indices[::3])  # 3ヶ月ごとに目盛り
+        ax.set_xticks(x_indices[::3])
         ax.set_xticklabels([x_labels[i] for i in range(0, len(x_labels), 3)], rotation=45, ha="right", fontsize=8)
         self.industry_trend_chart.figure.tight_layout()
         self.industry_trend_chart.redraw()
@@ -601,9 +734,8 @@ class CustomerTab(ctk.CTkFrame):
         self._update_customer_profit_trend(customer_name, years, division)
 
     def _update_customer_profit_trend(self, customer_name: str, years: List[int], division: str):
-        """選択取引先の月次売上・利益推移を更新（複数年対応）"""
+        """選択取引先の月次売上・利益推移を更新"""
         conn = self.db.connection
-        months = list(range(1, 13))
 
         placeholders = ",".join("?" * len(years))
         query = f"""
@@ -622,6 +754,7 @@ class CustomerTab(ctk.CTkFrame):
         """
         params = [customer_name] + years + [division]
         cursor = conn.execute(query, params)
+
         results = {}
         for row in cursor.fetchall():
             year, month, sales, cost, profit = row
@@ -629,47 +762,19 @@ class CustomerTab(ctk.CTkFrame):
                 results[year] = {}
             results[year][month] = {"sales": sales, "profit": profit}
 
-        y_data_dict = {}
-        sorted_years = sorted(years)
-
-        for year in sorted_years:
-            if year in results:
-                sales_values = [results[year].get(m, {}).get("sales", 0) / 1_000_000 for m in months]
-                if any(sales_values):
-                    y_data_dict[f"{year}年 売上"] = sales_values
-
-        # 最新年のみ利益も表示
-        if sorted_years:
-            latest_year = sorted_years[-1]
-            if latest_year in results:
-                profit_values = [results[latest_year].get(m, {}).get("profit", 0) / 1_000_000 for m in months]
-                if any(profit_values):
-                    y_data_dict[f"{latest_year}年 利益"] = profit_values
-
-        if not y_data_dict:
-            self.customer_trend_chart.clear()
-            self.customer_trend_chart.set_title("データなし")
-            self.customer_trend_chart.redraw()
+        if not results:
+            self.customer_trend_panel.clear()
             return
 
-        self.customer_trend_chart.plot(
-            x_data=months,
-            y_data_dict=y_data_dict,
-            xlabel="月",
-            ylabel="金額（百万円）",
-            title=f"{customer_name} - 売上推移"
-        )
+        self.customer_trend_panel.update_data(customer_name, results, years)
 
     def get_filter_values(self) -> Dict:
-        """フィルタ値を取得"""
         return self.filter_panel.get_filter_values()
 
     def refresh_filters(self):
-        """フィルタを更新"""
         self.filter_panel.refresh()
 
     def destroy(self):
-        """リソースを解放"""
         if self._owns_db and self.db:
             self.db.close()
         super().destroy()
