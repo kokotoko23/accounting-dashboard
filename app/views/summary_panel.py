@@ -115,22 +115,22 @@ class SummaryPanel(ctk.CTkFrame):
     def update_summary(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """サマリーを更新"""
-        if not years or not segments:
+        if not years or not divisions:
             self._reset_cards()
             return
 
         try:
             # 合計金額を計算
-            total = self._calculate_total(years, segments, account)
+            total = self._calculate_total(years, divisions, account)
             self.total_card.update_values(self._format_currency(total))
 
             # 前年比を計算
             if len(years) >= 2:
-                yoy = self._calculate_yoy(years, segments, account)
+                yoy = self._calculate_yoy(years, divisions, account)
                 yoy_text = f"{yoy:+.1f}%" if yoy is not None else "-"
                 yoy_color = "green" if yoy and yoy >= 0 else "red"
                 self.yoy_card.update_values(yoy_text, sub_color=yoy_color)
@@ -138,11 +138,11 @@ class SummaryPanel(ctk.CTkFrame):
                 self.yoy_card.update_values("-", "2年以上選択してください", "gray")
 
             # 取引先数を計算
-            customer_count = self._count_customers(years, segments, account)
+            customer_count = self._count_customers(years, divisions, account)
             self.customer_card.update_values(f"{customer_count:,}社")
 
             # 取引件数を計算
-            transaction_count = self._count_transactions(years, segments, account)
+            transaction_count = self._count_transactions(years, divisions, account)
             self.transaction_card.update_values(f"{transaction_count:,}件")
 
         except Exception as e:
@@ -152,11 +152,11 @@ class SummaryPanel(ctk.CTkFrame):
     def _calculate_total(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ) -> int:
         """合計金額を計算"""
-        df = self.db.get_monthly_data(years, segments, account)
+        df = self.db.get_monthly_data(years, divisions, account)
         if df.empty:
             return 0
         return int(df["total"].sum())
@@ -164,7 +164,7 @@ class SummaryPanel(ctk.CTkFrame):
     def _calculate_yoy(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ) -> Optional[float]:
         """前年比を計算"""
@@ -172,8 +172,8 @@ class SummaryPanel(ctk.CTkFrame):
         current_year = sorted_years[-1]
         prev_year = sorted_years[-2]
 
-        current_df = self.db.get_monthly_data([current_year], segments, account)
-        prev_df = self.db.get_monthly_data([prev_year], segments, account)
+        current_df = self.db.get_monthly_data([current_year], divisions, account)
+        prev_df = self.db.get_monthly_data([prev_year], divisions, account)
 
         if current_df.empty or prev_df.empty:
             return None
@@ -189,23 +189,23 @@ class SummaryPanel(ctk.CTkFrame):
     def _count_customers(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ) -> int:
         """取引先数をカウント"""
         conn = self.db.connection
 
         placeholders_years = ",".join("?" * len(years))
-        placeholders_segments = ",".join("?" * len(segments))
+        placeholders_divisions = ",".join("?" * len(divisions))
 
         query = f"""
             SELECT COUNT(DISTINCT customer_code) as count
             FROM transactions_denormalized
             WHERE account = ?
               AND year IN ({placeholders_years})
-              AND segment IN ({placeholders_segments})
+              AND division IN ({placeholders_divisions})
         """
-        params = [account] + years + segments
+        params = [account] + years + divisions
 
         cursor = conn.execute(query, params)
         result = cursor.fetchone()
@@ -214,23 +214,23 @@ class SummaryPanel(ctk.CTkFrame):
     def _count_transactions(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ) -> int:
         """取引件数をカウント"""
         conn = self.db.connection
 
         placeholders_years = ",".join("?" * len(years))
-        placeholders_segments = ",".join("?" * len(segments))
+        placeholders_divisions = ",".join("?" * len(divisions))
 
         query = f"""
             SELECT COUNT(*) as count
             FROM transactions_denormalized
             WHERE account = ?
               AND year IN ({placeholders_years})
-              AND segment IN ({placeholders_segments})
+              AND division IN ({placeholders_divisions})
         """
-        params = [account] + years + segments
+        params = [account] + years + divisions
 
         cursor = conn.execute(query, params)
         result = cursor.fetchone()

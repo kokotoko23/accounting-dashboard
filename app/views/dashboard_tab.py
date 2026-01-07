@@ -60,13 +60,13 @@ class DashboardTab(ctk.CTkFrame):
         )
         self.monthly_chart.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-        # 右上: セグメント構成比（円グラフ）
-        self.segment_chart = PieChartFrame(
+        # 右上: 事業部構成比（円グラフ）
+        self.division_chart = PieChartFrame(
             self,
             figsize=(5, 3),
             dpi=100
         )
-        self.segment_chart.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        self.division_chart.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
 
         # 左下: 前年同月比較（棒グラフ）
         self.comparison_chart = BarChartFrame(
@@ -76,7 +76,7 @@ class DashboardTab(ctk.CTkFrame):
         )
         self.comparison_chart.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
-        # 右下: 予備スペース（折れ線）
+        # 右下: 事業部別推移（折れ線）
         self.extra_chart = LineChartFrame(
             self,
             figsize=(5, 3),
@@ -87,7 +87,7 @@ class DashboardTab(ctk.CTkFrame):
     def update_charts(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """
@@ -95,33 +95,33 @@ class DashboardTab(ctk.CTkFrame):
 
         Args:
             years: 選択された年度リスト
-            segments: 選択されたセグメントリスト
+            divisions: 選択された事業部リスト
             account: 選択された科目
         """
         # サマリーパネルを更新
-        self.summary_panel.update_summary(years, segments, account)
+        self.summary_panel.update_summary(years, divisions, account)
 
         # グラフを更新
-        self._update_monthly_chart(years, segments, account)
-        self._update_segment_chart(years, account)
-        self._update_comparison_chart(years, segments, account)
-        self._update_extra_chart(years, segments, account)
+        self._update_monthly_chart(years, divisions, account)
+        self._update_division_chart(years, account)
+        self._update_comparison_chart(years, divisions, account)
+        self._update_extra_chart(years, divisions, account)
 
     def _update_monthly_chart(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """月次推移グラフを更新"""
-        if not years or not segments:
+        if not years or not divisions:
             self.monthly_chart.clear()
             self.monthly_chart.set_title("月次推移（データなし）")
             self.monthly_chart.redraw()
             return
 
         # データ取得
-        df = self.db.get_monthly_data(years, segments, account)
+        df = self.db.get_monthly_data(years, divisions, account)
 
         if df.empty:
             self.monthly_chart.clear()
@@ -154,38 +154,38 @@ class DashboardTab(ctk.CTkFrame):
             title=f"月次推移 - {account}"
         )
 
-    def _update_segment_chart(self, years: List[int], account: str):
-        """セグメント構成比グラフを更新"""
+    def _update_division_chart(self, years: List[int], account: str):
+        """事業部構成比グラフを更新"""
         if not years:
-            self.segment_chart.clear()
-            self.segment_chart.set_title("セグメント構成比（データなし）")
-            self.segment_chart.redraw()
+            self.division_chart.clear()
+            self.division_chart.set_title("事業部構成比（データなし）")
+            self.division_chart.redraw()
             return
 
         # データ取得
-        df = self.db.get_segment_summary(years, account)
+        df = self.db.get_division_summary(years, account)
 
         if df.empty:
-            self.segment_chart.clear()
-            self.segment_chart.set_title("セグメント構成比（データなし）")
-            self.segment_chart.redraw()
+            self.division_chart.clear()
+            self.division_chart.set_title("事業部構成比（データなし）")
+            self.division_chart.redraw()
             return
 
         # グラフ描画
-        self.segment_chart.plot(
-            labels=df["segment"].tolist(),
+        self.division_chart.plot(
+            labels=df["division"].tolist(),
             values=df["total"].tolist(),
-            title=f"セグメント構成比 - {account}"
+            title=f"事業部構成比 - {account}"
         )
 
     def _update_comparison_chart(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
         """前年同月比較グラフを更新"""
-        if not years or not segments or len(years) < 2:
+        if not years or not divisions or len(years) < 2:
             self.comparison_chart.clear()
             self.comparison_chart.set_title("前年比較（2年以上選択してください）")
             self.comparison_chart.redraw()
@@ -196,7 +196,7 @@ class DashboardTab(ctk.CTkFrame):
         current_year = sorted_years[-1]
         prev_year = sorted_years[-2]
 
-        df = self.db.get_monthly_data([current_year, prev_year], segments, account)
+        df = self.db.get_monthly_data([current_year, prev_year], divisions, account)
 
         if df.empty:
             self.comparison_chart.clear()
@@ -236,25 +236,25 @@ class DashboardTab(ctk.CTkFrame):
     def _update_extra_chart(
         self,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ):
-        """予備グラフを更新（セグメント別月次推移）"""
-        if not years or not segments:
+        """予備グラフを更新（事業部別月次推移）"""
+        if not years or not divisions:
             self.extra_chart.clear()
-            self.extra_chart.set_title("セグメント別推移（データなし）")
+            self.extra_chart.set_title("事業部別推移（データなし）")
             self.extra_chart.redraw()
             return
 
-        # 最新年度のセグメント別月次データを取得
+        # 最新年度の事業部別月次データを取得
         latest_year = max(years)
 
-        # セグメントごとにデータを取得
+        # 事業部ごとにデータを取得
         months = list(range(1, 13))
         y_data_dict = {}
 
-        for segment in segments:
-            df = self.db.get_monthly_data([latest_year], [segment], account)
+        for division in divisions:
+            df = self.db.get_monthly_data([latest_year], [division], account)
             if not df.empty:
                 monthly_values = []
                 for month in months:
@@ -263,11 +263,11 @@ class DashboardTab(ctk.CTkFrame):
                         monthly_values.append(month_data["total"].values[0] / 1_000_000)
                     else:
                         monthly_values.append(0)
-                y_data_dict[segment] = monthly_values
+                y_data_dict[division] = monthly_values
 
         if not y_data_dict:
             self.extra_chart.clear()
-            self.extra_chart.set_title("セグメント別推移（データなし）")
+            self.extra_chart.set_title("事業部別推移（データなし）")
             self.extra_chart.redraw()
             return
 
@@ -277,7 +277,7 @@ class DashboardTab(ctk.CTkFrame):
             y_data_dict=y_data_dict,
             xlabel="月",
             ylabel="金額（百万円）",
-            title=f"セグメント別推移 {latest_year}年度 - {account}"
+            title=f"事業部別推移 {latest_year}年度 - {account}"
         )
 
     def destroy(self):

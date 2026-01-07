@@ -108,14 +108,14 @@ class AccountingDashboardApp(ctk.CTk):
         """フィルタパネルを作成"""
         # データベースからフィルタ用データを取得
         years = self.db.get_years()
-        segments = self.db.get_segments()
+        divisions = self.db.get_divisions()
         accounts = self.db.get_accounts()
 
         # フィルタパネルを作成
         self.filter_panel = FilterPanel(
             self,
             years=years,
-            segments=segments,
+            divisions=divisions,
             accounts=accounts,
             on_filter_change=self._on_filter_change,
             width=220
@@ -142,8 +142,8 @@ class AccountingDashboardApp(ctk.CTk):
             self._update_dashboard()
         elif tab_name == MainTabView.TAB_CUSTOMER:
             self._update_customer()
-        elif tab_name == MainTabView.TAB_SEGMENT:
-            self._update_segment()
+        elif tab_name == MainTabView.TAB_DIVISION:
+            self._update_division()
 
     def _on_filter_change(self):
         """フィルタ変更時のコールバック"""
@@ -156,8 +156,8 @@ class AccountingDashboardApp(ctk.CTk):
             self._update_dashboard()
         elif current_tab == MainTabView.TAB_CUSTOMER:
             self._update_customer()
-        elif current_tab == MainTabView.TAB_SEGMENT:
-            self._update_segment()
+        elif current_tab == MainTabView.TAB_DIVISION:
+            self._update_division()
 
     def _update_dashboard(self):
         """ダッシュボードのグラフを更新"""
@@ -170,7 +170,7 @@ class AccountingDashboardApp(ctk.CTk):
         try:
             self.tab_view.update_dashboard(
                 years=filter_values["years"],
-                segments=filter_values["segments"],
+                divisions=filter_values["divisions"],
                 account=filter_values["account"]
             )
             self._set_status("更新完了", "normal")
@@ -190,7 +190,7 @@ class AccountingDashboardApp(ctk.CTk):
         try:
             self.tab_view.update_customer(
                 years=filter_values["years"],
-                segments=filter_values["segments"],
+                divisions=filter_values["divisions"],
                 account=filter_values["account"]
             )
             self._set_status("更新完了", "normal")
@@ -199,25 +199,25 @@ class AccountingDashboardApp(ctk.CTk):
             self._set_status(error_msg, "error")
             print(f"取引先データ更新エラー: {e}")
 
-    def _update_segment(self):
-        """セグメント分析タブを更新"""
+    def _update_division(self):
+        """事業部分析タブを更新"""
         filter_values = self.filter_panel.get_filter_values()
 
         # ローディング表示
-        self._set_status("セグメントデータを更新中...", "normal")
+        self._set_status("事業部データを更新中...", "normal")
         self.update_idletasks()
 
         try:
-            self.tab_view.update_segment(
+            self.tab_view.update_division(
                 years=filter_values["years"],
-                segments=filter_values["segments"],
+                divisions=filter_values["divisions"],
                 account=filter_values["account"]
             )
             self._set_status("更新完了", "normal")
         except Exception as e:
             error_msg = f"エラー: {str(e)}"
             self._set_status(error_msg, "error")
-            print(f"セグメントデータ更新エラー: {e}")
+            print(f"事業部データ更新エラー: {e}")
 
     def _on_import_click(self):
         """インポートボタンクリック時の処理"""
@@ -286,13 +286,13 @@ class AccountingDashboardApp(ctk.CTk):
 
         # 新しいデータでフィルタパネルを再作成
         years = self.db.get_years()
-        segments = self.db.get_segments()
+        divisions = self.db.get_divisions()
         accounts = self.db.get_accounts()
 
         self.filter_panel = FilterPanel(
             self,
             years=years,
-            segments=segments,
+            divisions=divisions,
             accounts=accounts,
             on_filter_change=self._on_filter_change,
             width=220
@@ -325,7 +325,7 @@ class AccountingDashboardApp(ctk.CTk):
             success = exporter.export_all_data(
                 filepath=filepath,
                 years=filter_values["years"],
-                segments=filter_values["segments"],
+                divisions=filter_values["divisions"],
                 account=filter_values["account"]
             )
 

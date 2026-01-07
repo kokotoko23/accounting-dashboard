@@ -21,7 +21,7 @@ class CSVExporter:
         self,
         filepath: str,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ) -> bool:
         """
@@ -30,14 +30,14 @@ class CSVExporter:
         Args:
             filepath: 出力ファイルパス
             years: 年度リスト
-            segments: セグメントリスト
+            divisions: 事業部リスト
             account: 科目
 
         Returns:
             成功したかどうか
         """
         try:
-            df = self.db.get_monthly_data(years, segments, account)
+            df = self.db.get_monthly_data(years, divisions, account)
 
             if df.empty:
                 return False
@@ -64,14 +64,14 @@ class CSVExporter:
             print(f"CSVエクスポートエラー: {e}")
             return False
 
-    def export_segment_summary(
+    def export_division_summary(
         self,
         filepath: str,
         years: List[int],
         account: str
     ) -> bool:
         """
-        セグメント別集計をCSVエクスポート
+        事業部別集計をCSVエクスポート
 
         Args:
             filepath: 出力ファイルパス
@@ -82,7 +82,7 @@ class CSVExporter:
             成功したかどうか
         """
         try:
-            df = self.db.get_segment_summary(years, account)
+            df = self.db.get_division_summary(years, account)
 
             if df.empty:
                 return False
@@ -92,13 +92,13 @@ class CSVExporter:
                 writer = csv.writer(f)
 
                 # ヘッダー
-                writer.writerow(["セグメント", "金額", "科目", "対象年度"])
+                writer.writerow(["事業部", "金額", "科目", "対象年度"])
 
                 # データ
                 years_str = ",".join(str(y) for y in sorted(years))
                 for _, row in df.iterrows():
                     writer.writerow([
-                        row["segment"],
+                        row["division"],
                         row["total"],
                         account,
                         years_str
@@ -163,7 +163,7 @@ class CSVExporter:
         self,
         filepath: str,
         years: List[int],
-        segments: List[str],
+        divisions: List[str],
         account: str
     ) -> bool:
         """
@@ -172,7 +172,7 @@ class CSVExporter:
         Args:
             filepath: 出力ファイルパス
             years: 年度リスト
-            segments: セグメントリスト
+            divisions: 事業部リスト
             account: 科目
 
         Returns:
@@ -182,7 +182,7 @@ class CSVExporter:
             conn = self.db.connection
 
             placeholders_years = ",".join("?" * len(years))
-            placeholders_segments = ",".join("?" * len(segments))
+            placeholders_divisions = ",".join("?" * len(divisions))
 
             query = f"""
                 SELECT year, month, segment, division, dept_name,
@@ -190,10 +190,10 @@ class CSVExporter:
                 FROM transactions_denormalized
                 WHERE account = ?
                   AND year IN ({placeholders_years})
-                  AND segment IN ({placeholders_segments})
-                ORDER BY year, month, segment, customer_name
+                  AND division IN ({placeholders_divisions})
+                ORDER BY year, month, division, customer_name
             """
-            params = [account] + years + segments
+            params = [account] + years + divisions
 
             cursor = conn.execute(query, params)
             rows = cursor.fetchall()

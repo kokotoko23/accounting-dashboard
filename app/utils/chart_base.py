@@ -217,15 +217,42 @@ class PieChartFrame(ChartFrame):
         """
         self.clear()
 
+        # 負の値をフィルタリング（円グラフは正の値のみ対応）
+        filtered_labels = []
+        filtered_values = []
+        has_negative = False
+
+        for label, value in zip(labels, values):
+            if value > 0:
+                filtered_labels.append(label)
+                filtered_values.append(value)
+            elif value < 0:
+                has_negative = True
+
+        # 有効なデータがない場合
+        if not filtered_values:
+            self.ax.text(
+                0.5, 0.5,
+                "表示可能なデータがありません\n（負の値のみ）" if has_negative else "データがありません",
+                ha="center", va="center", fontsize=12
+            )
+            if title:
+                self.set_title(title)
+            self.redraw()
+            return
+
         self.ax.pie(
-            values,
-            labels=labels,
+            filtered_values,
+            labels=filtered_labels,
             autopct="%1.1f%%",
             startangle=90
         )
         self.ax.axis("equal")
 
         if title:
+            # 負の値があった場合は注記を追加
+            if has_negative:
+                title += "\n（正の値のみ表示）"
             self.set_title(title)
 
         self.redraw()
