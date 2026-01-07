@@ -1,14 +1,153 @@
 """
 取引先分析タブ - 取引先ランキングと業種別分析
+フィルタ: 年度（複数選択）、事業部（単一選択）
 """
 
-from typing import List, Optional, Callable
+from typing import Callable, Dict, List, Optional
 
 import customtkinter as ctk
 from tkinter import ttk
 
 from app.models.database import AccountingDatabase
 from app.utils.chart_base import PieChartFrame, LineChartFrame
+
+
+class CustomerFilterPanel(ctk.CTkFrame):
+    """取引先分析用フィルタパネル"""
+
+    def __init__(
+        self,
+        parent,
+        db: AccountingDatabase,
+        on_filter_change: Callable,
+        **kwargs
+    ):
+        super().__init__(parent, **kwargs)
+
+        self.db = db
+        self.on_filter_change = on_filter_change
+
+        # フィルタ用変数
+        self.year_vars: Dict[int, ctk.BooleanVar] = {}
+        self.division_var = ctk.StringVar()
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        """ウィジェットを作成"""
+        # 横並びレイアウト
+        self.grid_columnconfigure((0, 1), weight=1)
+
+        # 年度フィルタ
+        self._create_year_filter()
+
+        # 事業部フィルタ（単一選択）
+        self._create_division_filter()
+
+        # フィルタ状況表示
+        self._create_filter_status()
+
+    def _create_year_filter(self):
+        """年度フィルタを作成"""
+        year_frame = ctk.CTkFrame(self)
+        year_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+
+        ctk.CTkLabel(
+            year_frame, text="年度", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=5, pady=(5, 2))
+
+        years = self.db.get_years()
+        checkbox_frame = ctk.CTkFrame(year_frame, fg_color="transparent")
+        checkbox_frame.pack(fill="x", padx=5)
+
+        for year in years:
+            var = ctk.BooleanVar(value=True)
+            self.year_vars[year] = var
+            cb = ctk.CTkCheckBox(
+                checkbox_frame,
+                text=f"{year}年",
+                variable=var,
+                command=self._on_change,
+                width=80
+            )
+            cb.pack(side="left", padx=2)
+
+    def _create_division_filter(self):
+        """事業部フィルタを作成（単一選択ドロップダウン）"""
+        div_frame = ctk.CTkFrame(self)
+        div_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+
+        ctk.CTkLabel(
+            div_frame, text="事業部", font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=5, pady=(5, 2))
+
+        divisions = self.db.get_divisions()
+        self.division_var.set(divisions[0] if divisions else "")
+
+        self.division_dropdown = ctk.CTkOptionMenu(
+            div_frame,
+            variable=self.division_var,
+            values=divisions,
+            command=lambda _: self._on_change(),
+            width=150
+        )
+        self.division_dropdown.pack(padx=5, pady=2)
+
+    def _create_filter_status(self):
+        """フィルタ状況表示を作成"""
+        self.status_label = ctk.CTkLabel(
+            self,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.status_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 5))
+        self._update_filter_status()
+
+    def _update_filter_status(self):
+        """フィルタ状況表示を更新"""
+        years = self.get_selected_years()
+        division = self.division_var.get()
+
+        years_str = ", ".join(f"{y}年" for y in years) if years else "未選択"
+
+        self.status_label.configure(
+            text=f"表示: {years_str} / {division}"
+        )
+
+    def _on_change(self):
+        """フィルタ変更時"""
+        self._update_filter_status()
+        self.on_filter_change()
+
+    def get_selected_years(self) -> List[int]:
+        """選択された年度を取得"""
+        return [year for year, var in self.year_vars.items() if var.get()]
+
+    def get_selected_division(self) -> str:
+        """選択された事業部を取得"""
+        return self.division_var.get()
+
+    def get_filter_values(self) -> Dict:
+        """フィルタ値を取得"""
+        return {
+            "years": self.get_selected_years(),
+            "divisions": [self.division_var.get()],  # 互換性のためリストで返す
+            "division": self.division_var.get(),
+            "account": "売上高"  # 互換性のため
+        }
+
+    def refresh(self):
+        """フィルタを再作成（データ更新後）"""
+        # 新しい年度を追加
+        new_years = self.db.get_years()
+        for year in new_years:
+            if year not in self.year_vars:
+                self.year_vars[year] = ctk.BooleanVar(value=True)
+
+        # 事業部リストを更新
+        divisions = self.db.get_divisions()
+        self.division_dropdown.configure(values=divisions)
 
 
 class CustomerRankingTable(ctk.CTkFrame):
@@ -101,34 +240,51 @@ class CustomerTab(ctk.CTkFrame):
         self,
         parent,
         db: Optional[AccountingDatabase] = None,
+        set_status: Optional[Callable] = None,
         **kwargs
     ):
         super().__init__(parent, **kwargs)
 
         self.db = db if db else AccountingDatabase()
         self._owns_db = db is None
+        self.set_status = set_status
 
-        # 現在のフィルタ値を保持
-        self.current_years: List[int] = []
-        self.current_account: str = "売上高"
+        # 選択中の取引先
         self.selected_customer: Optional[str] = None
 
         # レイアウト設定
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=0)  # フィルタ
+        self.grid_rowconfigure(1, weight=1)  # メインエリア上段
+        self.grid_rowconfigure(2, weight=1)  # メインエリア下段
 
+        # フィルタパネルを作成
+        self._create_filter_panel()
+
+        # ウィジェットを作成
         self._create_widgets()
+
+        # 初期データを表示
+        self._update_data()
+
+    def _create_filter_panel(self):
+        """フィルタパネルを作成"""
+        self.filter_panel = CustomerFilterPanel(
+            self,
+            db=self.db,
+            on_filter_change=self._on_filter_change
+        )
+        self.filter_panel.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
     def _create_widgets(self):
         """ウィジェットを作成"""
-        # 左上: 取引先ランキングテーブル
+        # 左: 取引先ランキングテーブル
         self.ranking_table = CustomerRankingTable(
             self,
             on_select=self._on_customer_select
         )
-        self.ranking_table.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=5, pady=5)
+        self.ranking_table.grid(row=1, column=0, rowspan=2, sticky="nsew", padx=5, pady=5)
 
         # 右上: 業種別構成比グラフ
         self.industry_chart = PieChartFrame(
@@ -136,7 +292,7 @@ class CustomerTab(ctk.CTkFrame):
             figsize=(5, 3.5),
             dpi=100
         )
-        self.industry_chart.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self.industry_chart.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
 
         # 右下: 選択取引先の月次推移（売上・利益）
         self.customer_trend_chart = LineChartFrame(
@@ -144,7 +300,7 @@ class CustomerTab(ctk.CTkFrame):
             figsize=(5, 3.5),
             dpi=100
         )
-        self.customer_trend_chart.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        self.customer_trend_chart.grid(row=2, column=1, sticky="nsew", padx=5, pady=5)
 
         # 初期メッセージ
         self.customer_trend_chart.ax.text(
@@ -153,22 +309,19 @@ class CustomerTab(ctk.CTkFrame):
         )
         self.customer_trend_chart.redraw()
 
-    def update_data(
-        self,
-        years: List[int],
-        divisions: List[str],
-        account: str
-    ):
-        """
-        データを更新
+    def _on_filter_change(self):
+        """フィルタ変更時"""
+        if self.set_status:
+            self.set_status("グラフを更新中...", "normal")
+        self._update_data()
+        if self.set_status:
+            self.set_status("更新完了", "normal")
 
-        Args:
-            years: 選択された年度リスト
-            divisions: 選択された事業部リスト（現在未使用）
-            account: 選択された科目
-        """
-        self.current_years = years
-        self.current_account = account
+    def _update_data(self):
+        """データを更新"""
+        filter_values = self.filter_panel.get_filter_values()
+        years = filter_values["years"]
+        division = filter_values["division"]
 
         if not years:
             return
@@ -177,18 +330,18 @@ class CustomerTab(ctk.CTkFrame):
         latest_year = max(years)
 
         # 取引先ランキングを更新
-        self._update_ranking(latest_year, account)
+        self._update_ranking(latest_year, division)
 
         # 業種別構成比を更新
-        self._update_industry_chart(latest_year, account)
+        self._update_industry_chart(latest_year, division)
 
         # 選択取引先があれば推移も更新
         if self.selected_customer:
-            self._update_customer_profit_trend(self.selected_customer)
+            self._update_customer_profit_trend(self.selected_customer, latest_year, division)
 
-    def _update_ranking(self, year: int, account: str):
+    def _update_ranking(self, year: int, division: str):
         """取引先ランキングを更新"""
-        df = self.db.get_customer_ranking(year, account, limit=20)
+        df = self.db.get_customer_ranking_by_division(year, division, limit=20)
 
         if df.empty:
             self.ranking_table.update_data([])
@@ -205,9 +358,9 @@ class CustomerTab(ctk.CTkFrame):
 
         self.ranking_table.update_data(data)
 
-    def _update_industry_chart(self, year: int, account: str):
+    def _update_industry_chart(self, year: int, division: str):
         """業種別構成比グラフを更新"""
-        df = self.db.get_industry_summary(year, account)
+        df = self.db.get_industry_summary_by_division(year, division)
 
         if df.empty:
             self.industry_chart.clear()
@@ -218,24 +371,25 @@ class CustomerTab(ctk.CTkFrame):
         self.industry_chart.plot(
             labels=df["industry"].tolist(),
             values=df["total"].tolist(),
-            title=f"業種別構成比 {year}年度 - {account}"
+            title=f"業種別構成比 {year}年度 - {division}"
         )
 
     def _on_customer_select(self, customer_name: str, industry: str):
         """取引先選択時の処理"""
-        if not self.current_years:
+        filter_values = self.filter_panel.get_filter_values()
+        years = filter_values["years"]
+        division = filter_values["division"]
+
+        if not years:
             return
 
         self.selected_customer = customer_name
-        self._update_customer_profit_trend(customer_name)
+        latest_year = max(years)
+        self._update_customer_profit_trend(customer_name, latest_year, division)
 
-    def _update_customer_profit_trend(self, customer_name: str):
+    def _update_customer_profit_trend(self, customer_name: str, year: int, division: str):
         """選択取引先の月次売上・利益推移を更新"""
-        if not self.current_years:
-            return
-
         conn = self.db.connection
-        latest_year = max(self.current_years)
 
         # 月次データを取得（売上・利益）
         months = list(range(1, 13))
@@ -250,10 +404,11 @@ class CustomerTab(ctk.CTkFrame):
             FROM transactions_denormalized
             WHERE customer_name = ?
               AND year = ?
+              AND division = ?
             GROUP BY month
             ORDER BY month
         """
-        cursor = conn.execute(query, [customer_name, latest_year])
+        cursor = conn.execute(query, [customer_name, year, division])
         results = {row[0]: {"sales": row[1], "profit": row[3]} for row in cursor.fetchall()}
 
         y_data_dict = {}
@@ -276,8 +431,16 @@ class CustomerTab(ctk.CTkFrame):
             y_data_dict=y_data_dict,
             xlabel="月",
             ylabel="金額（百万円）",
-            title=f"{customer_name} - 売上・利益推移 {latest_year}年度"
+            title=f"{customer_name} - 売上・利益推移 {year}年度 - {division}"
         )
+
+    def get_filter_values(self) -> Dict:
+        """フィルタ値を取得"""
+        return self.filter_panel.get_filter_values()
+
+    def refresh_filters(self):
+        """フィルタを更新"""
+        self.filter_panel.refresh()
 
     def destroy(self):
         """リソースを解放"""
