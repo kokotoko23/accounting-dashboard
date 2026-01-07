@@ -57,37 +57,37 @@ class DepartmentFilterPanel(ctk.CTkFrame):
 
     def _create_year_filter(self):
         """年度フィルタを作成"""
-        year_frame = ctk.CTkFrame(self)
-        year_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        year_frame = ctk.CTkFrame(self, fg_color="transparent")
+        year_frame.grid(row=0, column=0, sticky="w", padx=5, pady=2)
 
         ctk.CTkLabel(
-            year_frame, text="年度", font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(anchor="w", padx=5, pady=(5, 2))
+            year_frame, text="年度:", font=ctk.CTkFont(size=11, weight="bold")
+        ).pack(side="left", padx=(5, 2))
 
         years = self.db.get_years()
-        checkbox_frame = ctk.CTkFrame(year_frame, fg_color="transparent")
-        checkbox_frame.pack(fill="x", padx=5)
-
         for year in years:
             var = ctk.BooleanVar(value=True)
             self.year_vars[year] = var
             cb = ctk.CTkCheckBox(
-                checkbox_frame,
-                text=f"{year}年",
+                year_frame,
+                text=f"{year}",
                 variable=var,
                 command=self._on_change,
-                width=80
+                width=55,
+                height=20,
+                checkbox_width=16,
+                checkbox_height=16
             )
             cb.pack(side="left", padx=2)
 
     def _create_division_filter(self):
         """事業部フィルタを作成（単一選択ドロップダウン）"""
-        div_frame = ctk.CTkFrame(self)
-        div_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        div_frame = ctk.CTkFrame(self, fg_color="transparent")
+        div_frame.grid(row=0, column=1, sticky="w", padx=5, pady=2)
 
         ctk.CTkLabel(
-            div_frame, text="事業部", font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(anchor="w", padx=5, pady=(5, 2))
+            div_frame, text="事業部:", font=ctk.CTkFont(size=11, weight="bold")
+        ).pack(side="left", padx=(5, 2))
 
         divisions = self.db.get_divisions()
         self.division_var.set(divisions[0] if divisions else "")
@@ -97,46 +97,47 @@ class DepartmentFilterPanel(ctk.CTkFrame):
             variable=self.division_var,
             values=divisions,
             command=self._on_division_change,
-            width=150
+            width=120,
+            height=24
         )
-        self.division_dropdown.pack(padx=5, pady=2)
+        self.division_dropdown.pack(side="left", padx=2)
 
     def _create_dept_filter(self):
         """部門フィルタを作成"""
-        self.dept_frame = ctk.CTkFrame(self)
-        self.dept_frame.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
-
-        header_frame = ctk.CTkFrame(self.dept_frame, fg_color="transparent")
-        header_frame.pack(fill="x", padx=5, pady=(5, 2))
+        self.dept_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.dept_frame.grid(row=0, column=2, sticky="w", padx=5, pady=2)
 
         ctk.CTkLabel(
-            header_frame, text="部門", font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(side="left")
+            self.dept_frame, text="部門:", font=ctk.CTkFont(size=11, weight="bold")
+        ).pack(side="left", padx=(5, 2))
 
         ctk.CTkButton(
-            header_frame, text="全選択", width=60, height=24,
-            command=self._select_all_depts
-        ).pack(side="right", padx=2)
+            self.dept_frame, text="全選択", width=50, height=20,
+            command=self._select_all_depts,
+            font=ctk.CTkFont(size=10)
+        ).pack(side="left", padx=2)
 
-        # スクロール可能なフレーム
+        # 部門チェックボックス用のフレーム（横スクロール）
         self.dept_checkbox_frame = ctk.CTkScrollableFrame(
             self.dept_frame,
-            height=60,
+            height=24,
+            width=200,
+            orientation="horizontal",
             fg_color="transparent"
         )
-        self.dept_checkbox_frame.pack(fill="both", expand=True, padx=5, pady=2)
+        self.dept_checkbox_frame.pack(side="left", padx=2)
 
         # 初期の部門リストを作成
         self._update_dept_checkboxes()
 
     def _create_account_filter(self):
         """科目フィルタを作成"""
-        account_frame = ctk.CTkFrame(self)
-        account_frame.grid(row=0, column=3, sticky="nsew", padx=5, pady=5)
+        account_frame = ctk.CTkFrame(self, fg_color="transparent")
+        account_frame.grid(row=0, column=3, sticky="w", padx=5, pady=2)
 
         ctk.CTkLabel(
-            account_frame, text="科目", font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(anchor="w", padx=5, pady=(5, 2))
+            account_frame, text="科目:", font=ctk.CTkFont(size=11, weight="bold")
+        ).pack(side="left", padx=(5, 2))
 
         accounts = self.db.get_accounts()
         self.account_var.set(accounts[0] if accounts else "売上高")
@@ -146,19 +147,20 @@ class DepartmentFilterPanel(ctk.CTkFrame):
             variable=self.account_var,
             values=accounts,
             command=lambda _: self._on_change(),
-            width=150
+            width=100,
+            height=24
         )
-        self.account_dropdown.pack(padx=5, pady=2)
+        self.account_dropdown.pack(side="left", padx=2)
 
     def _create_filter_status(self):
         """フィルタ状況表示を作成"""
         self.status_label = ctk.CTkLabel(
             self,
             text="",
-            font=ctk.CTkFont(size=11),
+            font=ctk.CTkFont(size=10),
             text_color="gray"
         )
-        self.status_label.grid(row=1, column=0, columnspan=4, sticky="w", padx=10, pady=(0, 5))
+        self.status_label.grid(row=1, column=0, columnspan=4, sticky="w", padx=10, pady=(0, 2))
         self._update_filter_status()
 
     def _update_filter_status(self):
@@ -203,9 +205,13 @@ class DepartmentFilterPanel(ctk.CTkFrame):
                 text=dept_name,
                 variable=var,
                 command=self._on_change,
-                width=120
+                width=100,
+                height=20,
+                checkbox_width=16,
+                checkbox_height=16,
+                font=ctk.CTkFont(size=10)
             )
-            cb.pack(side="left", padx=2, pady=2)
+            cb.pack(side="left", padx=2)
 
     def _on_division_change(self, _=None):
         """事業部変更時"""
