@@ -17,7 +17,6 @@ import customtkinter as ctk
 from app.models.database import AccountingDatabase
 from app.utils.exporter import CSVExporter
 from app.utils.importer import CSVImporter
-from app.views.filter_panel import FilterPanel
 from app.views.import_dialog import ImportDialog, ImportResultDialog
 from app.views.tab_view import MainTabView
 
@@ -30,7 +29,7 @@ class AccountingDashboardApp(ctk.CTk):
 
         # ウィンドウ設定
         self.title("会計データ可視化ダッシュボード")
-        self.geometry("1280x800")
+        self.geometry("1400x850")
 
         # 外観設定
         ctk.set_appearance_mode("light")
@@ -54,7 +53,7 @@ class AccountingDashboardApp(ctk.CTk):
     def _create_layout(self):
         """レイアウトを作成"""
         # グリッド設定（ツールバー + メイン領域 + ステータスバー）
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=0)  # ツールバー用
         self.grid_rowconfigure(1, weight=1)  # メイン領域
         self.grid_rowconfigure(2, weight=0)  # ステータスバー用
@@ -62,21 +61,18 @@ class AccountingDashboardApp(ctk.CTk):
         # ツールバー
         self._create_toolbar()
 
-        # 左サイドバー（フィルタパネル）
-        self._create_filter_panel()
-
-        # メインエリア
+        # メインエリア（タブビュー）
         self._create_main_area()
 
     def _create_toolbar(self):
         """ツールバーを作成"""
         self.toolbar = ctk.CTkFrame(self, height=40, corner_radius=0)
-        self.toolbar.grid(row=0, column=0, columnspan=2, sticky="ew")
+        self.toolbar.grid(row=0, column=0, sticky="ew")
 
         # インポートボタン
         self.import_btn = ctk.CTkButton(
             self.toolbar,
-            text="📤 CSVインポート",
+            text="CSVインポート",
             width=140,
             command=self._on_import_click
         )
@@ -85,7 +81,7 @@ class AccountingDashboardApp(ctk.CTk):
         # エクスポートボタン
         self.export_btn = ctk.CTkButton(
             self.toolbar,
-            text="📥 CSVエクスポート",
+            text="CSVエクスポート",
             width=140,
             command=self._on_export_click
         )
@@ -94,7 +90,7 @@ class AccountingDashboardApp(ctk.CTk):
     def _create_status_bar(self):
         """ステータスバーを作成"""
         self.status_frame = ctk.CTkFrame(self, height=30, corner_radius=0)
-        self.status_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.status_frame.grid(row=2, column=0, sticky="ew")
 
         self.status_label = ctk.CTkLabel(
             self.status_frame,
@@ -104,120 +100,15 @@ class AccountingDashboardApp(ctk.CTk):
         )
         self.status_label.pack(side="left", padx=10, pady=5)
 
-    def _create_filter_panel(self):
-        """フィルタパネルを作成"""
-        # データベースからフィルタ用データを取得
-        years = self.db.get_years()
-        divisions = self.db.get_divisions()
-        accounts = self.db.get_accounts()
-
-        # フィルタパネルを作成
-        self.filter_panel = FilterPanel(
-            self,
-            years=years,
-            divisions=divisions,
-            accounts=accounts,
-            on_filter_change=self._on_filter_change,
-            width=220
-        )
-        self.filter_panel.grid(row=1, column=0, sticky="nsw", padx=0, pady=0)
-
     def _create_main_area(self):
         """メインエリアを作成"""
-        # タブビューを作成（データベース接続を渡す）
+        # タブビューを作成（データベース接続とステータス更新関数を渡す）
         self.tab_view = MainTabView(
             self,
             db=self.db,
-            on_tab_change=self._on_tab_change
+            set_status=self._set_status
         )
-        self.tab_view.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
-
-        # 初期データでグラフを表示
-        self._update_dashboard()
-
-    def _on_tab_change(self, tab_name: str):
-        """タブ変更時のコールバック"""
-        # タブ切り替え時にデータを更新
-        if tab_name == MainTabView.TAB_DASHBOARD:
-            self._update_dashboard()
-        elif tab_name == MainTabView.TAB_CUSTOMER:
-            self._update_customer()
-        elif tab_name == MainTabView.TAB_DIVISION:
-            self._update_division()
-
-    def _on_filter_change(self):
-        """フィルタ変更時のコールバック"""
-        filter_values = self.filter_panel.get_filter_values()
-        print(f"フィルタ変更: {filter_values}")
-
-        # 現在のタブに応じてデータを更新
-        current_tab = self.tab_view.get_current_tab()
-        if current_tab == MainTabView.TAB_DASHBOARD:
-            self._update_dashboard()
-        elif current_tab == MainTabView.TAB_CUSTOMER:
-            self._update_customer()
-        elif current_tab == MainTabView.TAB_DIVISION:
-            self._update_division()
-
-    def _update_dashboard(self):
-        """ダッシュボードのグラフを更新"""
-        filter_values = self.filter_panel.get_filter_values()
-
-        # ローディング表示
-        self._set_status("グラフを更新中...", "normal")
-        self.update_idletasks()
-
-        try:
-            self.tab_view.update_dashboard(
-                years=filter_values["years"],
-                divisions=filter_values["divisions"],
-                account=filter_values["account"]
-            )
-            self._set_status("更新完了", "normal")
-        except Exception as e:
-            error_msg = f"エラー: {str(e)}"
-            self._set_status(error_msg, "error")
-            print(f"グラフ更新エラー: {e}")
-
-    def _update_customer(self):
-        """取引先分析タブを更新"""
-        filter_values = self.filter_panel.get_filter_values()
-
-        # ローディング表示
-        self._set_status("取引先データを更新中...", "normal")
-        self.update_idletasks()
-
-        try:
-            self.tab_view.update_customer(
-                years=filter_values["years"],
-                divisions=filter_values["divisions"],
-                account=filter_values["account"]
-            )
-            self._set_status("更新完了", "normal")
-        except Exception as e:
-            error_msg = f"エラー: {str(e)}"
-            self._set_status(error_msg, "error")
-            print(f"取引先データ更新エラー: {e}")
-
-    def _update_division(self):
-        """事業部分析タブを更新"""
-        filter_values = self.filter_panel.get_filter_values()
-
-        # ローディング表示
-        self._set_status("事業部データを更新中...", "normal")
-        self.update_idletasks()
-
-        try:
-            self.tab_view.update_division(
-                years=filter_values["years"],
-                divisions=filter_values["divisions"],
-                account=filter_values["account"]
-            )
-            self._set_status("更新完了", "normal")
-        except Exception as e:
-            error_msg = f"エラー: {str(e)}"
-            self._set_status(error_msg, "error")
-            print(f"事業部データ更新エラー: {e}")
+        self.tab_view.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
 
     def _on_import_click(self):
         """インポートボタンクリック時の処理"""
@@ -264,10 +155,8 @@ class AccountingDashboardApp(ctk.CTk):
 
             if success:
                 self._set_status(f"インポート完了: {count}件", "normal")
-                # フィルタパネルを更新（新しい年度・セグメントが追加された可能性）
-                self._refresh_filter_panel()
-                # 現在のタブを更新
-                self._on_filter_change()
+                # 各タブのフィルタを更新
+                self.tab_view.refresh_all_filters()
             else:
                 self._set_status("インポート失敗", "error")
 
@@ -276,32 +165,14 @@ class AccountingDashboardApp(ctk.CTk):
             self._set_status(error_msg, "error")
             print(f"CSVインポートエラー: {e}")
 
-    def _refresh_filter_panel(self):
-        """フィルタパネルを再作成（データ更新後）"""
-        # 現在の選択状態を保存
-        current_values = self.filter_panel.get_filter_values()
-
-        # フィルタパネルを削除
-        self.filter_panel.destroy()
-
-        # 新しいデータでフィルタパネルを再作成
-        years = self.db.get_years()
-        divisions = self.db.get_divisions()
-        accounts = self.db.get_accounts()
-
-        self.filter_panel = FilterPanel(
-            self,
-            years=years,
-            divisions=divisions,
-            accounts=accounts,
-            on_filter_change=self._on_filter_change,
-            width=220
-        )
-        self.filter_panel.grid(row=1, column=0, sticky="nsw", padx=0, pady=0)
-
     def _on_export_click(self):
         """エクスポートボタンクリック時の処理"""
-        filter_values = self.filter_panel.get_filter_values()
+        # 現在のタブからフィルタ値を取得
+        filter_values = self.tab_view.get_current_filter_values()
+
+        if not filter_values:
+            self._set_status("エクスポートできるデータがありません", "error")
+            return
 
         # デフォルトファイル名を生成
         default_filename = CSVExporter.get_default_filename()
@@ -324,9 +195,9 @@ class AccountingDashboardApp(ctk.CTk):
             exporter = CSVExporter(self.db)
             success = exporter.export_all_data(
                 filepath=filepath,
-                years=filter_values["years"],
-                divisions=filter_values["divisions"],
-                account=filter_values["account"]
+                years=filter_values.get("years", []),
+                divisions=filter_values.get("divisions", []),
+                account=filter_values.get("account", "売上高")
             )
 
             if success:
@@ -357,8 +228,8 @@ class AccountingDashboardApp(ctk.CTk):
     def _center_window(self):
         """ウィンドウを画面中央に配置"""
         self.update_idletasks()
-        width = 1280
-        height = 800
+        width = 1400
+        height = 850
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f"{width}x{height}+{x}+{y}")
