@@ -10,7 +10,7 @@ from tkinter import ttk
 import numpy as np
 
 from app.models.database import AccountingDatabase
-from app.utils.chart_base import PieChartFrame, LineChartFrame, ChartFrameBase
+from app.utils.chart_base import PieChartFrame, LineChartFrame, ChartFrame
 
 
 class CustomerFilterPanel(ctk.CTkFrame):
@@ -340,7 +340,7 @@ class CustomerTrendPanel(ctk.CTkFrame):
         ).pack(side="left", padx=2)
 
         # グラフエリア
-        self.chart = ChartFrameBase(self, figsize=(5, 2.5), dpi=100)
+        self.chart = ChartFrame(self, figsize=(5, 2.5), dpi=100)
         self.chart.pack(fill="both", expand=True, padx=5, pady=5)
 
         # 初期メッセージ
